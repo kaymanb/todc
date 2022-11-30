@@ -2,22 +2,28 @@ use std::sync::atomic::{AtomicU8, Ordering};
 
 pub struct IntegerRegister {
     data: AtomicU8,
+    ordering: Ordering
 }
 
 impl IntegerRegister {
     
     fn new(value: u8) -> Self {
-        Self {
-           data: AtomicU8::new(value) 
-        }
+        IntegerRegister::new_with_order(value, Ordering::Relaxed)
+    }
+
+    fn new_with_order(value: u8, ordering: Ordering) -> Self {
+       Self {
+           data: AtomicU8::new(value), 
+           ordering: ordering
+       }
     }
 
     fn read(&self) -> u8 {
-        self.data.load(Ordering::Relaxed)
+        self.data.load(self.ordering)
     }
 
     fn write(&self, value: u8) -> () {
-        self.data.store(value, Ordering::Relaxed)
+        self.data.store(value, self.ordering)
     }
 }
 
