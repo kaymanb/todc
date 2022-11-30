@@ -7,8 +7,8 @@ pub struct IntegerRegister {
 
 impl IntegerRegister {
     
-    fn new(value: u8) -> Self {
-        IntegerRegister::new_with_order(value, Ordering::Relaxed)
+    pub fn new(value: u8) -> Self {
+        IntegerRegister::new_with_order(value, Ordering::SeqCst)
     }
 
     fn new_with_order(value: u8, ordering: Ordering) -> Self {
@@ -18,11 +18,11 @@ impl IntegerRegister {
        }
     }
 
-    fn read(&self) -> u8 {
+    pub fn read(&self) -> u8 {
         self.data.load(self.ordering)
     }
 
-    fn write(&self, value: u8) -> () {
+    pub fn write(&self, value: u8) -> () {
         self.data.store(value, self.ordering)
     }
 }
