@@ -1,4 +1,4 @@
-use std::sync::atomic::{AtomicU8, Ordering};
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 pub trait Register {
     type Value;
@@ -12,22 +12,28 @@ pub trait Register {
 
 
 pub struct IntegerRegister {
-    data: AtomicU8,
+    data: AtomicUsize,
     ordering: Ordering
 }
 
 impl IntegerRegister {
-    fn new_with_order(value: u8, ordering: Ordering) -> Self {
+    fn new_with_order(value: usize, ordering: Ordering) -> Self {
        Self {
-           data: AtomicU8::new(value), 
+           data: AtomicUsize::new(value), 
            ordering: ordering
        }
     }
 
 }
 
+impl Clone for IntegerRegister {
+    fn clone(&self) -> IntegerRegister {
+        IntegerRegister::new(self.read())
+    }
+}
+
 impl Register for IntegerRegister {
-    type Value = u8;
+    type Value = usize;
 
     fn new(value: Self::Value) -> Self {
         IntegerRegister::new_with_order(value, Ordering::SeqCst)
