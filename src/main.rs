@@ -6,7 +6,7 @@ use todc::{IntegerRegister, Register};
 fn main() {
     let num_threads = 3;
     let registers: Arc<Vec<IntegerRegister>> = Arc::new(vec![Register::new(0); num_threads]);
-     
+
     for i in 0..num_threads {
         let registers = Arc::clone(&registers);
         thread::spawn(move || {

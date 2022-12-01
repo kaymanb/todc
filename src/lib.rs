@@ -10,25 +10,17 @@ pub trait Register {
     fn write(&self, value: Self::Value) -> ();
 }
 
-
 pub struct IntegerRegister {
     data: AtomicUsize,
-    ordering: Ordering
+    ordering: Ordering,
 }
 
 impl IntegerRegister {
     fn new_with_order(value: usize, ordering: Ordering) -> Self {
-       Self {
-           data: AtomicUsize::new(value), 
-           ordering: ordering
-       }
-    }
-
-}
-
-impl Clone for IntegerRegister {
-    fn clone(&self) -> IntegerRegister {
-        IntegerRegister::new(self.read())
+        Self {
+            data: AtomicUsize::new(value),
+            ordering: ordering,
+        }
     }
 }
 
@@ -48,21 +40,27 @@ impl Register for IntegerRegister {
     }
 }
 
+impl Clone for IntegerRegister {
+    fn clone(&self) -> IntegerRegister {
+        IntegerRegister::new(self.read())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_new() {
         IntegerRegister::new(0);
     }
-    
+
     #[test]
     fn test_read() {
         let register = IntegerRegister::new(0);
         assert_eq!(0, register.read());
     }
-    
+
     #[test]
     fn test_write() {
         let register = IntegerRegister::new(0);
