@@ -1,10 +1,10 @@
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
-use todc::IntegerRegister;
+use todc::{IntegerRegister, Register};
 
 fn main() {
-    let register = Arc::new(IntegerRegister::new(0));
+    let register: Arc<IntegerRegister> = Arc::new(Register::new(0));
     
     for i in 0..3 {
         let register = Arc::clone(&register);

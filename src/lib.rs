@@ -1,16 +1,22 @@
 use std::sync::atomic::{AtomicU8, Ordering};
 
+pub trait Register {
+    type Value;
+
+    fn new(value: Self::Value) -> Self;
+
+    fn read(&self) -> Self::Value;
+
+    fn write(&self, value: Self::Value) -> ();
+}
+
+
 pub struct IntegerRegister {
     data: AtomicU8,
     ordering: Ordering
 }
 
 impl IntegerRegister {
-    
-    pub fn new(value: u8) -> Self {
-        IntegerRegister::new_with_order(value, Ordering::SeqCst)
-    }
-
     fn new_with_order(value: u8, ordering: Ordering) -> Self {
        Self {
            data: AtomicU8::new(value), 
@@ -18,11 +24,20 @@ impl IntegerRegister {
        }
     }
 
-    pub fn read(&self) -> u8 {
+}
+
+impl Register for IntegerRegister {
+    type Value = u8;
+
+    fn new(value: Self::Value) -> Self {
+        IntegerRegister::new_with_order(value, Ordering::SeqCst)
+    }
+
+    fn read(&self) -> Self::Value {
         self.data.load(self.ordering)
     }
 
-    pub fn write(&self, value: u8) -> () {
+    fn write(&self, value: Self::Value) -> () {
         self.data.store(value, self.ordering)
     }
 }
