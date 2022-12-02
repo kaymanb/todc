@@ -1,12 +1,15 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 use super::Register;
 
+/// An atomic register storing integer values.
 pub struct IntegerRegister {
     data: AtomicUsize,
     ordering: Ordering,
 }
 
 impl IntegerRegister {
+    /// Creates a new atomic register with specified initial integer value and 
+    /// memory ordering. 
     fn new_with_order(value: usize, ordering: Ordering) -> Self {
         Self {
             data: AtomicUsize::new(value),
@@ -17,7 +20,24 @@ impl IntegerRegister {
 
 impl Register for IntegerRegister {
     type Value = usize;
-
+    
+    /// Creates a new atomic register with specified initial integer value and
+    /// the strongest available memory ordering, Sequential Consistency, 
+    ///
+    /// **Note:** Sequential consistency is slightly weaker than linearizability,
+    /// the synchronization condition usually associated with atomic memory. 
+    /// In particular, sequentially consistent objects are not _composable_, 
+    /// meaning that a program built of multiple sequentially consistent objects 
+    /// might itself fail to be sequentially consistent.  
+    ///
+    /// Fortunately, it has been shown that in asynchronous systems any program that
+    /// is linearizable when implemented from linearizable base objects is also 
+    /// sequentially consistent when implemented from sequentially consistent base 
+    /// objects [PPMG16](https://arxiv.org/abs/1607.06258). What this means is that,
+    /// for the purpose of implementing linearizable objects from atomic registers,
+    /// we are free to use sequentially consistent registers, like the one 
+    /// implemented here, instead. The price we pay is that the implemented object
+    /// will also be sequentially consistent, instead of linearizable. 
     fn new(value: Self::Value) -> Self {
         IntegerRegister::new_with_order(value, Ordering::SeqCst)
     }
@@ -43,35 +63,7 @@ mod tests {
     use super::IntegerRegister;
 
     register_tests! {
-        integer_register: IntegerRegister,
+        test: IntegerRegister,
     }
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-
-//     #[test]
-//     fn test_new() {
-//         IntegerRegister::new(0);
-//     }
-
-//     #[test]
-//     fn test_read() {
-//         let register = IntegerRegister::new(0);
-//         assert_eq!(0, register.read());
-//     }
-
-//     #[test]
-//     fn test_write() {
-//         let register = IntegerRegister::new(0);
-//         register.write(1);
-//         assert_eq!(1, register.read());
-//     }
-
-//     #[test]
-//     fn test_clone() {
-//         let register = IntegerRegister::new(1);
-//         assert_eq!(register.read(), register.clone().read());
-//     }
-// }
