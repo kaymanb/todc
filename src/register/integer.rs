@@ -22,7 +22,7 @@ impl Register for IntegerRegister {
     type Value = usize;
     
     /// Creates a new atomic register with specified initial integer value and
-    /// the strongest available memory ordering, Sequential Consistency, 
+    /// the strongest available memory ordering, Sequential Consistency.
     ///
     /// **Note:** Sequential consistency is slightly weaker than linearizability,
     /// the synchronization condition usually associated with atomic memory. 
@@ -33,7 +33,7 @@ impl Register for IntegerRegister {
     /// Fortunately, it has been shown that in asynchronous systems any program that
     /// is linearizable when implemented from linearizable base objects is also 
     /// sequentially consistent when implemented from sequentially consistent base 
-    /// objects [PPMG16](https://arxiv.org/abs/1607.06258). What this means is that,
+    /// objects [\[PPMG16\]](https://arxiv.org/abs/1607.06258). What this means is that,
     /// for the purpose of implementing linearizable objects from atomic registers,
     /// we are free to use sequentially consistent registers, like the one 
     /// implemented here, instead. The price we pay is that the implemented object
