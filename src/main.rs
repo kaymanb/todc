@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::thread;
 //use std::time::Duration;
-use todc::{IntegerRegister, Register};
+use todc::register::{IntegerRegister, Register};
 
 fn main() {
     let num_threads = 3;
