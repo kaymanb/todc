@@ -39,29 +39,39 @@ impl Clone for IntegerRegister {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::register_tests;
+    use super::IntegerRegister;
 
-    #[test]
-    fn test_new() {
-        IntegerRegister::new(0);
-    }
-
-    #[test]
-    fn test_read() {
-        let register = IntegerRegister::new(0);
-        assert_eq!(0, register.read());
-    }
-
-    #[test]
-    fn test_write() {
-        let register = IntegerRegister::new(0);
-        register.write(1);
-        assert_eq!(1, register.read());
-    }
-
-    #[test]
-    fn test_clone() {
-        let register = IntegerRegister::new(1);
-        assert_eq!(register.read(), register.clone().read());
+    register_tests! {
+        integer_register: IntegerRegister,
     }
 }
+
+// #[cfg(test)]
+// mod tests {
+//     use super::*;
+
+//     #[test]
+//     fn test_new() {
+//         IntegerRegister::new(0);
+//     }
+
+//     #[test]
+//     fn test_read() {
+//         let register = IntegerRegister::new(0);
+//         assert_eq!(0, register.read());
+//     }
+
+//     #[test]
+//     fn test_write() {
+//         let register = IntegerRegister::new(0);
+//         register.write(1);
+//         assert_eq!(1, register.read());
+//     }
+
+//     #[test]
+//     fn test_clone() {
+//         let register = IntegerRegister::new(1);
+//         assert_eq!(register.read(), register.clone().read());
+//     }
+// }
