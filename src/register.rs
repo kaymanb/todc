@@ -5,7 +5,7 @@ mod atomic;
 pub use self::atomic::AtomicRegister;
 
 /// A shared-memory register.
-pub trait Register: Clone {
+pub trait Register {
     type Value;
     
     /// Creates a new register with specified initial value.
