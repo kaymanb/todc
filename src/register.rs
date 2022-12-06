@@ -1,3 +1,5 @@
+//! A shared read/write register.
+
 mod atomic;
 
 pub use self::atomic::AtomicRegister;
