@@ -45,19 +45,21 @@ impl<T: Copy, const N: usize> Snapshot<N> for UnboundedAtomicSnapshot<T, N> {
     }
 
     fn scan(&self) -> [Self::Value; N] {
+        // A process has moved if it it's sequence number
+        // has been incremented.
         let mut moved = [0; N];
         loop {
             let first = self.collect();
             let second = self.collect();
-            // If both collects are identical, then they are a valid snapshot.
+            // If both collects are identical, then their values are a valid scan.
             if (0..N).all(|i| first[i].sequence == second[i].sequence) {
                 return second.map(|c| c.data);
             }
-
             for j in 0..N {
-                // If process j is observed to have moved twice, then during the
-                // second update it performed a succesfull snapshot, whose
-                // view can be borrowed and returned here.
+                // If process j is observed to have moved twice, then it must 
+                // have performed a succesfull update. The result of the scan
+                // that it performed during that operation can be borrowed and
+                // returned here.
                 if first[j].sequence != second[j].sequence {
                     if moved[j] == 1 {
                         return second[j].view;
