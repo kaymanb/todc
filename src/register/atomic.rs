@@ -5,36 +5,35 @@ use ::atomic::Atomic;
 use super::Register;
 
 /// An atomic shared-memory register.
-/// 
-/// Native atomic instructions are used if they are available for `T`, 
+///
+/// Native atomic instructions are used if they are available for `T`,
 /// along with the strongest available memory ordering, Sequential Consistency.
 ///
 /// Otherwise, the implementation falls-back to a spinlock based mechansim to
 /// prevent concurrent access.
 ///
 /// **Note:** Sequential consistency is slightly weaker than linearizability,
-/// the synchronization condition usually associated with atomic memory. 
-/// In particular, sequentially consistent objects are not _composable_, 
-/// meaning that a program built of multiple sequentially consistent objects 
+/// the synchronization condition usually associated with atomic memory.
+/// In particular, sequentially consistent objects are not _composable_,
+/// meaning that a program built of multiple sequentially consistent objects
 /// might itself fail to be sequentially consistent.  
 ///
 /// Fortunately, it has been shown that in asynchronous systems any program that
-/// is linearizable when implemented from linearizable base objects is also 
-/// sequentially consistent when implemented from sequentially consistent base 
+/// is linearizable when implemented from linearizable base objects is also
+/// sequentially consistent when implemented from sequentially consistent base
 /// objects [\[PPMG16\]](https://arxiv.org/abs/1607.06258). What this means is that,
 /// for the purpose of implementing linearizable objects from atomic registers,
-/// we are free to use sequentially consistent registers, like the one 
+/// we are free to use sequentially consistent registers, like the one
 /// implemented here, instead. The price we pay is that the implemented object
-/// will also only be sequentially consistent. 
+/// will also only be sequentially consistent.
 pub struct AtomicRegister<T: Copy> {
     data: Atomic<T>,
-    ordering: Ordering
+    ordering: Ordering,
 }
 
-
 impl<T: Copy> AtomicRegister<T> {
-    /// Creates a new atomic register with specified initial value and 
-    /// memory ordering. 
+    /// Creates a new atomic register with specified initial value and
+    /// memory ordering.
     fn new_with_order(value: T, ordering: Ordering) -> Self {
         Self {
             data: Atomic::new(value),
@@ -45,18 +44,18 @@ impl<T: Copy> AtomicRegister<T> {
 
 impl<T: Copy> Register for AtomicRegister<T> {
     type Value = T;
-    
+
     /// Creates a new atomic register with specified initial value.
     fn new(value: Self::Value) -> Self {
         AtomicRegister::new_with_order(value, Ordering::SeqCst)
     }
-    
+
     /// Returns the contents of the register.
     fn read(&self) -> Self::Value {
         self.data.load(self.ordering)
     }
-    
-    /// Sets the contents of the register. 
+
+    /// Sets the contents of the register.
     fn write(&self, value: Self::Value) -> () {
         self.data.store(value, self.ordering)
     }
@@ -71,10 +70,10 @@ impl<T: Copy> Clone for AtomicRegister<T> {
 #[cfg(test)]
 mod tests {
     use super::{AtomicRegister, Register};
-    
+
     mod test_boolean {
         use super::{AtomicRegister, Register};
-        
+
         #[test]
         fn test_new() {
             AtomicRegister::new(true);
@@ -95,7 +94,7 @@ mod tests {
 
     mod test_integer {
         use super::{AtomicRegister, Register};
-        
+
         #[test]
         fn test_new() {
             AtomicRegister::new(123);
@@ -116,22 +115,22 @@ mod tests {
 
     mod test_struct {
         use super::{AtomicRegister, Register};
-    
+
         #[derive(Clone, Copy, PartialEq, Debug)]
         enum Color {
-            Red, 
-            Blue
+            Red,
+            Blue,
         }
 
         #[derive(Clone, Copy)]
         struct Thing {
             color: Color,
-            height_in_ft: f32
+            height_in_ft: f32,
         }
-        
+
         const THING: Thing = Thing {
             color: Color::Red,
-            height_in_ft: 5.9
+            height_in_ft: 5.9,
         };
 
         #[test]
@@ -145,7 +144,7 @@ mod tests {
             let thing = register.read();
             let same_thing = Thing {
                 color: Color::Red,
-                height_in_ft: 5.9
+                height_in_ft: 5.9,
             };
             assert_eq!(thing.color, same_thing.color);
             assert_eq!(thing.height_in_ft, same_thing.height_in_ft);
@@ -156,7 +155,7 @@ mod tests {
             let register = AtomicRegister::new(THING);
             let new_thing = Thing {
                 color: Color::Blue,
-                height_in_ft: 10.0
+                height_in_ft: 10.0,
             };
 
             register.write(new_thing);
@@ -166,5 +165,3 @@ mod tests {
         }
     }
 }
-
-
