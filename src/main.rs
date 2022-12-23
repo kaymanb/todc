@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::thread;
 
-use todc::snapshot::{aad_plus::BoundedAtomicSnapshot, Snapshot};
+use todc::snapshot::{aad_plus_93::BoundedAtomicSnapshot, Snapshot};
 
 fn main() {
     const SIZE: usize = 10;
