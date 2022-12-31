@@ -8,8 +8,8 @@ pub use self::atomic::AtomicRegister;
 pub trait Register {
     type Value;
 
-    /// Creates a new register with specified initial value.
-    fn new(value: Self::Value) -> Self;
+    /// Creates a new register.
+    fn new() -> Self;
 
     /// Returns the contents stored in the register.
     fn read(&self) -> Self::Value;

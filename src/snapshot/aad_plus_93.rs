@@ -6,10 +6,20 @@ use super::Snapshot;
 use crate::register::{AtomicRegister, Register};
 
 #[derive(Clone, Copy)]
-struct UnboundedContents<T: Copy, const N: usize> {
+struct UnboundedContents<T: Copy + Default, const N: usize> {
     data: T,
     view: [T; N],
     sequence: usize,
+}
+
+impl<T: Copy + Default, const N: usize> Default for UnboundedContents<T, N> {
+    fn default() -> Self {
+        UnboundedContents {
+            data: T::default(),
+            view: [T::default(); N],
+            sequence: 0
+        }
+    }
 }
 
 /// An single-writer atomic snapshot from unbounded single-writer multi-reader
@@ -20,27 +30,22 @@ struct UnboundedContents<T: Copy, const N: usize> {
 /// single-writer multi-writer atomic registers. In practice, these
 /// sequence numbers are stored as `usize`, and are unlikely to overflow
 /// during short-running programs.
-pub struct UnboundedAtomicSnapshot<T: Copy, const N: usize> {
+pub struct UnboundedAtomicSnapshot<T: Copy + Default, const N: usize> {
     registers: [AtomicRegister<UnboundedContents<T, N>>; N],
 }
 
-impl<T: Copy, const N: usize> UnboundedAtomicSnapshot<T, N> {
+impl<T: Copy + Default, const N: usize> UnboundedAtomicSnapshot<T, N> {
     fn collect(&self) -> [UnboundedContents<T, N>; N] {
         from_fn(|i| self.registers[i].read())
     }
 }
 
-impl<T: Copy, const N: usize> Snapshot<N> for UnboundedAtomicSnapshot<T, N> {
+impl<T: Copy + Default, const N: usize> Snapshot<N> for UnboundedAtomicSnapshot<T, N> {
     type Value = T;
 
-    fn new(value: Self::Value) -> Self {
-        let initial_contents = UnboundedContents {
-            data: value,
-            sequence: 0,
-            view: [value; N],
-        };
+    fn new() -> Self {
         Self {
-            registers: [(); N].map(|_| AtomicRegister::new(initial_contents)),
+            registers: [(); N].map(|_| AtomicRegister::<UnboundedContents<T, N>>::new()),
         }
     }
 
@@ -84,7 +89,7 @@ impl<T: Copy, const N: usize> Snapshot<N> for UnboundedAtomicSnapshot<T, N> {
 }
 
 #[derive(Clone, Copy)]
-struct BoundedContents<T: Copy, const N: usize> {
+struct BoundedContents<T: Copy + Default, const N: usize> {
     data: T,
     view: [T; N],
     // Handshake bits
@@ -92,33 +97,38 @@ struct BoundedContents<T: Copy, const N: usize> {
     toggle: bool,
 }
 
+impl<T: Copy + Default, const N: usize> Default for BoundedContents<T, N> {
+    fn default() -> Self {
+        BoundedContents {
+            data: T::default(),
+            view: [T::default(); N],
+            p: [false; N],
+            toggle: false
+        }
+    }
+}
+
 /// A single-writer atomic snapshot from single-writer multi-reader
 /// atomic registers.
-pub struct BoundedAtomicSnapshot<T: Copy, const N: usize> {
+pub struct BoundedAtomicSnapshot<T: Copy + Default, const N: usize> {
     registers: [AtomicRegister<BoundedContents<T, N>>; N],
     // Handshake bits
     q: [[AtomicRegister<bool>; N]; N],
 }
 
-impl<T: Copy, const N: usize> BoundedAtomicSnapshot<T, N> {
+impl<T: Copy + Default, const N: usize> BoundedAtomicSnapshot<T, N> {
     fn collect(&self) -> [BoundedContents<T, N>; N] {
         from_fn(|i| self.registers[i].read())
     }
 }
 
-impl<T: Copy, const N: usize> Snapshot<N> for BoundedAtomicSnapshot<T, N> {
+impl<T: Copy + Default, const N: usize> Snapshot<N> for BoundedAtomicSnapshot<T, N> {
     type Value = T;
 
-    fn new(value: Self::Value) -> Self {
-        let initial_contents = BoundedContents {
-            data: value,
-            view: [value; N],
-            p: [false; N],
-            toggle: false,
-        };
+    fn new() -> Self {
         Self {
-            registers: [(); N].map(|_| AtomicRegister::new(initial_contents)),
-            q: [[(); N]; N].map(|arr| arr.map(|_| AtomicRegister::new(false))),
+            registers: [(); N].map(|_| AtomicRegister::<BoundedContents<T, N>>::new()),
+            q: [[(); N]; N].map(|arr| arr.map(|_| AtomicRegister::<bool>::new())),
         }
     }
 

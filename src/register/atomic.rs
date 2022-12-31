@@ -26,28 +26,29 @@ use super::Register;
 /// we are free to use sequentially consistent registers, like the one
 /// implemented here, instead. The price we pay is that the implemented object
 /// will also only be sequentially consistent.
-pub struct AtomicRegister<T: Copy> {
+#[derive(Debug)]
+pub struct AtomicRegister<T: Copy + Default> {
     data: Atomic<T>,
     ordering: Ordering,
 }
 
-impl<T: Copy> AtomicRegister<T> {
+impl<T: Copy + Default> AtomicRegister<T> {
     /// Creates a new atomic register with specified initial value and
     /// memory ordering.
-    fn new_with_order(value: T, ordering: Ordering) -> Self {
+    fn new_with_order(ordering: Ordering) -> Self {
         Self {
-            data: Atomic::new(value),
+            data: Atomic::new(T::default()),
             ordering: ordering,
         }
     }
 }
 
-impl<T: Copy> Register for AtomicRegister<T> {
+impl<T: Copy + Default> Register for AtomicRegister<T> {
     type Value = T;
 
     /// Creates a new atomic register with specified initial value.
-    fn new(value: Self::Value) -> Self {
-        AtomicRegister::new_with_order(value, Ordering::SeqCst)
+    fn new() -> Self {
+        AtomicRegister::new_with_order(Ordering::SeqCst)
     }
 
     /// Returns the contents of the register.
@@ -61,9 +62,11 @@ impl<T: Copy> Register for AtomicRegister<T> {
     }
 }
 
-impl<T: Copy> Clone for AtomicRegister<T> {
+impl<T: Copy + Default> Clone for AtomicRegister<T> {
     fn clone(&self) -> AtomicRegister<T> {
-        AtomicRegister::new(self.read())
+        let clone = AtomicRegister::new();
+        clone.write(self.read());
+        clone
     }
 }
 
@@ -76,19 +79,20 @@ mod tests {
 
         #[test]
         fn test_new() {
-            AtomicRegister::new(true);
+            AtomicRegister::<bool>::new();
         }
 
         #[test]
         fn test_read() {
-            assert_eq!(true, AtomicRegister::new(true).read());
+            let register: AtomicRegister<bool> = AtomicRegister::new();
+            assert_eq!(false, register.read());
         }
 
         #[test]
         fn test_write() {
-            let register = AtomicRegister::new(true);
-            register.write(false);
-            assert_eq!(false, register.read());
+            let register = AtomicRegister::new();
+            register.write(true);
+            assert_eq!(true, register.read());
         }
     }
 
@@ -97,17 +101,18 @@ mod tests {
 
         #[test]
         fn test_new() {
-            AtomicRegister::new(123);
+            AtomicRegister::<usize>::new();
         }
 
         #[test]
         fn test_read() {
-            assert_eq!(123, AtomicRegister::new(123).read());
+            let register: AtomicRegister<usize> = AtomicRegister::new();
+            assert_eq!(0, register.read());
         }
 
         #[test]
         fn test_write() {
-            let register = AtomicRegister::new(0);
+            let register = AtomicRegister::new();
             register.write(123);
             assert_eq!(123, register.read());
         }
@@ -116,13 +121,14 @@ mod tests {
     mod test_struct {
         use super::{AtomicRegister, Register};
 
-        #[derive(Clone, Copy, PartialEq, Debug)]
+        #[derive(Clone, Copy, PartialEq, Debug, Default)]
         enum Color {
+            #[default]
             Red,
             Blue,
         }
 
-        #[derive(Clone, Copy)]
+        #[derive(Clone, Copy, Default)]
         struct Thing {
             color: Color,
             height_in_ft: f32,
@@ -135,16 +141,16 @@ mod tests {
 
         #[test]
         fn test_new() {
-            AtomicRegister::new(THING);
+            AtomicRegister::<Thing>::new();
         }
 
         #[test]
         fn test_read() {
-            let register = AtomicRegister::new(THING);
+            let register: AtomicRegister<Thing> = AtomicRegister::new();
             let thing = register.read();
             let same_thing = Thing {
                 color: Color::Red,
-                height_in_ft: 5.9,
+                height_in_ft: 0.0,
             };
             assert_eq!(thing.color, same_thing.color);
             assert_eq!(thing.height_in_ft, same_thing.height_in_ft);
@@ -152,12 +158,11 @@ mod tests {
 
         #[test]
         fn test_write() {
-            let register = AtomicRegister::new(THING);
+            let register = AtomicRegister::new();
             let new_thing = Thing {
                 color: Color::Blue,
                 height_in_ft: 10.0,
             };
-
             register.write(new_thing);
             let contents = register.read();
             assert_eq!(contents.color, new_thing.color);

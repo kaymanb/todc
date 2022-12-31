@@ -6,8 +6,8 @@ pub mod aad_plus_93;
 pub trait Snapshot<const N: usize> {
     type Value;
 
-    /// Creates a snapshot object where each component is set to the inital value.
-    fn new(value: Self::Value) -> Self;
+    /// Creates a snapshot object.
+    fn new() -> Self;
 
     /// Returns an array containing the value of each component in the object.
     fn scan(&self, i: usize) -> [Self::Value; N];
