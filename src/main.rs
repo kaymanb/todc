@@ -1,33 +1,36 @@
-// use std::sync::Arc;
-// use std::thread;
+use todc::register::{AtomicRegister};
 
-// use todc::snapshot::{aad_plus_93::BoundedAtomicSnapshot, Snapshot};
-
-// fn main() {
-//     const SIZE: usize = 10;
-//     let snapshot: Arc<BoundedAtomicSnapshot<usize, SIZE>> = Arc::new(BoundedAtomicSnapshot::new(0));
-
-//     for i in 0..SIZE {
-//         let snapshot = Arc::clone(&snapshot);
-//         thread::spawn(move || {
-//             snapshot.update(i, i + 1);
-//         });
-//     }
-
-//     println!("Read {:?} from snapshot", snapshot.scan(0));
-// }
-
-struct Node<T> {
+#[derive(Debug)]
+struct BinaryTree<T: Default> {
     value: T,
-    left: Option<Box<Node<T>>>,
-    right: Option<Box<Node<T>>>
+    left: Option<Box<BinaryTree<T>>>,
+    right: Option<Box<BinaryTree<T>>>
+}
+
+impl<T: Default> BinaryTree<T> {
+
+    fn new(value: T) -> Self {
+        BinaryTree {
+            value: value,
+            left: None,
+            right: None
+        } 
+    }
+
+    fn complete(depth: usize) -> Self {
+        match depth {
+            1 => Self::new(T::default()),
+            _ => {
+                let mut root = Self::new(T::default());
+                root.left = Some(Box::new(Self::complete(depth - 1)));
+                root.right = Some(Box::new(Self::complete(depth - 1)));
+                root
+            }
+        } 
+    }
 }
 
 fn main() {
-    let bst = Node {
-        value: 0,
-        left: Some(Box::new(Node { value: 1, left: None, right: None })),
-        right: None
-    };
-    print!("{}", bst.value)
+    let bt: BinaryTree<AtomicRegister<usize>> = BinaryTree::complete(3);
+    print!("{:?}", bt)
 }

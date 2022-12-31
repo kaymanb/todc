@@ -43,6 +43,12 @@ impl<T: Copy + Default> AtomicRegister<T> {
     }
 }
 
+impl<T: Copy + Default> Default for AtomicRegister<T> {
+    fn default() -> Self {
+        AtomicRegister::<T>::new()
+    }
+}
+
 impl<T: Copy + Default> Register for AtomicRegister<T> {
     type Value = T;
 
