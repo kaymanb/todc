@@ -23,10 +23,37 @@ impl<T: Copy + Default, const N: usize> Default for Classifier<T, N> {
     }
 }
 
-/// An atomic snapshot object.
+/// An N-process M-shot atomic snapshot object.
 pub struct AtomicSnapshot<T: Copy + Default, const N: usize, const M: usize> {
     components: [AtomicRegister<Component<T>>; N],
     tree: CompleteBinaryTree<Classifier<T, N>>,
+}
+
+impl<T: Copy + Default, const N: usize, const M: usize> AtomicSnapshot<T, N, M> {
+
+    fn scate(&self, i: usize, value: T) -> [T; N] {
+
+    }
+}
+
+impl<T: Copy + Default, const N: usize, const M: usize> Snapshot<N> for AtomicSnapshot<T, N, M> {
+    type Value = T;
+
+    fn new() -> Self {
+        Self {
+            components: [(); N].map(|_| AtomicRegister::new()),
+            tree: CompleteBinaryTree::new(M)
+        }
+    }
+
+    fn scan(&self, i: usize) -> [Self::Value; N] {
+        self.scate(i, self.components[i].read().value)
+    }
+
+    fn update(&self, i: usize, value: Self::Value) -> () {
+        self.scate(i, value);
+    }
+
 }
 
 /// A complete binary tree.
@@ -48,7 +75,8 @@ impl<T: Default> CompleteBinaryTree<T> {
             ),
         }
     }
-
+    
+    /// Returns the level of the node inside the tree.
     fn level(&self) -> usize {
         match self {
             Self::Leaf(_) => 1,
