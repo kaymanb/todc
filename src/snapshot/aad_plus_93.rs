@@ -17,7 +17,7 @@ impl<T: Copy + Default, const N: usize> Default for UnboundedContents<T, N> {
         UnboundedContents {
             data: T::default(),
             view: [T::default(); N],
-            sequence: 0
+            sequence: 0,
         }
     }
 }
@@ -103,7 +103,7 @@ impl<T: Copy + Default, const N: usize> Default for BoundedContents<T, N> {
             data: T::default(),
             view: [T::default(); N],
             p: [false; N],
-            toggle: false
+            toggle: false,
         }
     }
 }

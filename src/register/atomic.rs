@@ -140,11 +140,6 @@ mod tests {
             height_in_ft: f32,
         }
 
-        const THING: Thing = Thing {
-            color: Color::Red,
-            height_in_ft: 5.9,
-        };
-
         #[test]
         fn test_new() {
             AtomicRegister::<Thing>::new();

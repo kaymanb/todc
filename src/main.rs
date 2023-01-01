@@ -1,36 +1,25 @@
-use todc::register::{AtomicRegister};
+use todc::register::AtomicRegister;
 
 #[derive(Debug)]
-struct BinaryTree<T: Default> {
-    value: T,
-    left: Option<Box<BinaryTree<T>>>,
-    right: Option<Box<BinaryTree<T>>>
+enum CompleteBinaryTree<T: Default> {
+    Leaf(T),
+    Node(T, Box<CompleteBinaryTree<T>>, Box<CompleteBinaryTree<T>>),
 }
 
-impl<T: Default> BinaryTree<T> {
-
-    fn new(value: T) -> Self {
-        BinaryTree {
-            value: value,
-            left: None,
-            right: None
-        } 
-    }
-
-    fn complete(depth: usize) -> Self {
+impl<T: Default> CompleteBinaryTree<T> {
+    fn new(depth: usize) -> Self {
         match depth {
-            1 => Self::new(T::default()),
-            _ => {
-                let mut root = Self::new(T::default());
-                root.left = Some(Box::new(Self::complete(depth - 1)));
-                root.right = Some(Box::new(Self::complete(depth - 1)));
-                root
-            }
-        } 
+            1 => Self::Leaf(T::default()),
+            _ => Self::Node(
+                T::default(),
+                Box::new(Self::new(depth - 1)),
+                Box::new(Self::new(depth - 1)),
+            ),
+        }
     }
 }
 
 fn main() {
-    let bt: BinaryTree<AtomicRegister<usize>> = BinaryTree::complete(3);
+    let bt: CompleteBinaryTree<AtomicRegister<usize>> = CompleteBinaryTree::new(2);
     print!("{:?}", bt)
 }

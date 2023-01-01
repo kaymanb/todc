@@ -1,6 +1,7 @@
 //! A shared snapshot object.
 
 pub mod aad_plus_93;
+pub mod ar_98;
 
 /// An N-component Snapshot object.
 pub trait Snapshot<const N: usize> {
