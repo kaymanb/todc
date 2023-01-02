@@ -1,9 +1,12 @@
 //! Implementations of atomic snapshot objects based on the paper by
 //! Attiya and Rachman [[AR93]](https://doi.org/10.1137/S0097539795279463).
+use core::array::from_fn;
+
 use super::Snapshot;
 
 use crate::register::{AtomicRegister, Register};
 
+/// The contents of one component of a snapshot object.
 #[derive(Clone, Copy, Default)]
 struct Component<T: Copy + Default> {
     value: T,
@@ -11,29 +14,66 @@ struct Component<T: Copy + Default> {
     counter: usize,
 }
 
+/// A view of all components of a snapshot object.
+#[derive(Clone, Copy)]
+struct View<T: Copy + Default, const N: usize> {
+    components: [Component<T>; N],
+}
+
+impl<T: Copy + Default, const N: usize> View<T, N> {
+    /// Returns the union of an array of views.
+    ///
+    /// The union of an array of views V_1...V_N is a new view V where each
+    /// component V[i] is equal to the component V_j[i] with maximal _sequence_ field.
+    fn union_many(views: [View<T, N>; N]) -> View<T, N> {
+        // TODO: Implement this!
+    }
+}
+
+impl<T: Copy + Default, const N: usize> Default for View<T, N> {
+    fn default() -> Self {
+        Self {
+            components: [(); N].map(|_| Component::default()),
+        }
+    }
+}
+
+/// An object for classifying processes into two disjoint groups.
 struct Classifier<T: Copy + Default, const N: usize> {
-    registers: [AtomicRegister<Component<T>>; N],
+    registers: [AtomicRegister<View<T, N>>; N],
 }
 
 impl<T: Copy + Default, const N: usize> Default for Classifier<T, N> {
     fn default() -> Self {
         Self {
-            registers: [(); N].map(|_| AtomicRegister::<Component<T>>::new()),
+            registers: [(); N].map(|_| AtomicRegister::new()),
         }
+    }
+}
+
+impl<T: Copy + Default, const N: usize> Classifier<T, N> {
+    fn collect(&self) -> [View<T, N>; N] {
+        from_fn(|i| self.registers[i].read())
+    }
+
+    /// TODO: Explain this.
+    fn classify(&self, i: usize, knowledge_bound: usize, view: View<T, N>) -> View<T, N> {
+        self.registers[i].write(view);
+        knowledge = View::union_many(self.collect());
+        // TODO: Continue here maybe.
     }
 }
 
 /// An N-process M-shot atomic snapshot object.
 pub struct AtomicSnapshot<T: Copy + Default, const N: usize, const M: usize> {
     components: [AtomicRegister<Component<T>>; N],
-    tree: CompleteBinaryTree<Classifier<T, N>>,
+    root: CompleteBinaryTree<Classifier<T, N>>,
 }
 
 impl<T: Copy + Default, const N: usize, const M: usize> AtomicSnapshot<T, N, M> {
-
-    fn scate(&self, i: usize, value: T) -> [T; N] {
-
-    }
+    /// Returns a view of the snapshot object, and updates the ith component to
+    /// contain the input value.
+    fn scate(&self, i: usize, value: T) -> [T; N] {}
 }
 
 impl<T: Copy + Default, const N: usize, const M: usize> Snapshot<N> for AtomicSnapshot<T, N, M> {
@@ -42,7 +82,7 @@ impl<T: Copy + Default, const N: usize, const M: usize> Snapshot<N> for AtomicSn
     fn new() -> Self {
         Self {
             components: [(); N].map(|_| AtomicRegister::new()),
-            tree: CompleteBinaryTree::new(M)
+            root: CompleteBinaryTree::new(M),
         }
     }
 
@@ -53,7 +93,6 @@ impl<T: Copy + Default, const N: usize, const M: usize> Snapshot<N> for AtomicSn
     fn update(&self, i: usize, value: Self::Value) -> () {
         self.scate(i, value);
     }
-
 }
 
 /// A complete binary tree.
@@ -75,7 +114,7 @@ impl<T: Default> CompleteBinaryTree<T> {
             ),
         }
     }
-    
+
     /// Returns the level of the node inside the tree.
     fn level(&self) -> usize {
         match self {
