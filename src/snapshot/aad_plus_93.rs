@@ -7,15 +7,15 @@ use crate::register::{AtomicRegister, Register};
 
 #[derive(Clone, Copy)]
 struct UnboundedContents<T: Copy + Default, const N: usize> {
-    data: T,
+    value: T,
     view: [T; N],
-    sequence: usize,
+    sequence: u32,
 }
 
 impl<T: Copy + Default, const N: usize> Default for UnboundedContents<T, N> {
     fn default() -> Self {
         UnboundedContents {
-            data: T::default(),
+            value: T::default(),
             view: [T::default(); N],
             sequence: 0,
         }
@@ -28,7 +28,7 @@ impl<T: Copy + Default, const N: usize> Default for UnboundedContents<T, N> {
 /// This implementation relies on storing sequence numbers that can
 /// grow arbitrarily large, hence the dependence on _unbounded_
 /// single-writer multi-writer atomic registers. In practice, these
-/// sequence numbers are stored as `usize`, and are unlikely to overflow
+/// sequence numbers are stored as `u32`, and are unlikely to overflow
 /// during short-running programs.
 pub struct UnboundedAtomicSnapshot<T: Copy + Default, const N: usize> {
     registers: [AtomicRegister<UnboundedContents<T, N>>; N],
@@ -57,7 +57,7 @@ impl<T: Copy + Default, const N: usize> Snapshot<N> for UnboundedAtomicSnapshot<
             let second = self.collect();
             // If both collects are identical, then their values are a valid scan.
             if (0..N).all(|j| first[j].sequence == second[j].sequence) {
-                return second.map(|c| c.data);
+                return second.map(|c| c.value);
             }
             for j in 0..N {
                 // If process j is observed to have moved twice, then it must
@@ -80,7 +80,7 @@ impl<T: Copy + Default, const N: usize> Snapshot<N> for UnboundedAtomicSnapshot<
         // new value, an incremented sequence number, and the result
         // of a scan.
         let contents = UnboundedContents {
-            data: value,
+            value,
             sequence: self.registers[i].read().sequence + 1,
             view: self.scan(i),
         };
@@ -90,7 +90,7 @@ impl<T: Copy + Default, const N: usize> Snapshot<N> for UnboundedAtomicSnapshot<
 
 #[derive(Clone, Copy)]
 struct BoundedContents<T: Copy + Default, const N: usize> {
-    data: T,
+    value: T,
     view: [T; N],
     // Handshake bits
     p: [bool; N],
@@ -100,7 +100,7 @@ struct BoundedContents<T: Copy + Default, const N: usize> {
 impl<T: Copy + Default, const N: usize> Default for BoundedContents<T, N> {
     fn default() -> Self {
         BoundedContents {
-            data: T::default(),
+            value: T::default(),
             view: [T::default(); N],
             p: [false; N],
             toggle: false,
@@ -152,7 +152,7 @@ impl<T: Copy + Default, const N: usize> Snapshot<N> for BoundedAtomicSnapshot<T,
                 let toggles = first[j].toggle == second[j].toggle;
                 handshakes && toggles
             }) {
-                return second.map(|c| c.data);
+                return second.map(|c| c.value);
             }
             for j in 0..N {
                 if first[j].p[i] != self.q[i][j].read()
@@ -178,7 +178,7 @@ impl<T: Copy + Default, const N: usize> Snapshot<N> for BoundedAtomicSnapshot<T,
         // result of a scan, and negated handshake and toggle bits.
         let handshakes: [bool; N] = from_fn(|j| !self.q[j][i].read());
         let contents = BoundedContents {
-            data: value,
+            value,
             view: self.scan(i),
             p: handshakes,
             toggle: !self.registers[i].read().toggle,
