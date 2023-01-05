@@ -1,11 +1,8 @@
 //! Implementations of atomic snapshot objects based on the paper by
 //! Attiya and Rachman [[AR93]](https://doi.org/10.1137/S0097539795279463).
 use core::array::from_fn;
-use num_traits;
 use super::Snapshot;
 use crate::register::{AtomicRegister, Register};
-use ProcessGroup::*;
-use CompleteBinaryTree::{Leaf, Node};
 
 /// The contents of one component of a snapshot object.
 #[derive(Clone, Copy, Default)]
@@ -35,13 +32,18 @@ impl<T: Copy + Default, const N: usize> View<T, N> {
         }
     }
 
-    /// Return the size of the view, which is the number of operations that were
+    /// Returns the size of the view, which is the number of operations that were
     /// performed on the snapshot object before the view was obtained.
     ///
     /// Intutively, the size of the view corresponds to the amount of knowledge
     /// that the view contains.
     fn size(&self) -> u32 {
         self.components.map(|c| c.counter).iter().sum()
+    }
+    
+    /// Returns an array of values stored in the components of the view.
+    fn values(&self) -> [T; N] {
+        self.components.map(|c| c.value)
     }
 }
 
@@ -55,9 +57,9 @@ impl<T: Copy + Default, const N: usize> Default for View<T, N> {
 
 /// Groups for classifying processes based on their view of the components
 /// of a snapshot object.
-enum ProcessGroup<T: Copy + Default, const N: usize> {
+enum Group<T: Copy + Default, const N: usize> {
     Primary(View<T, N>),
-    Secondary(View<T, N>)
+    Secondary
 }
 
 /// An object for classifying processes into two disjoint groups and updating
@@ -75,19 +77,18 @@ impl<T: Copy + Default, const N: usize> Default for Classifier<T, N> {
 }
 
 impl<T: Copy + Default, const N: usize> Classifier<T, N> {
+    /// Reads from each register and returns an array of the results.
     fn collect(&self) -> [View<T, N>; N] {
         from_fn(|i| self.registers[i].read())
     }
-
-    /// Returns a view, containing information about the contents of a snapshot objects
-    /// components.
+    
+    /// Classify the input process into either a _primary_ or _secondary group_, and
+    /// update the knowledge the process has about contents of the snapshot object.
     ///
-    /// Calling processes are classified into two disjoint groups, and the view that
-    /// is returned depends on which group the process belongs to. Processes in the
-    /// _secondary_ group retain their original knowledge, and receive the same view
-    /// they used as input. Processes in the _primary_ group may learn additional
-    /// information about the contents of the snapshot object, and recieve an updated
-    /// view.
+    /// Calling processes are classified into disjoint groups. Processes in the primary
+    /// group may learn additional information about the contents of the snapshot 
+    /// object, and recieve an updated view in response. Processes in the secondary
+    /// group retain their original knowledge.
     ///
     /// The input parameter _knowledge_bound_ is used to determine whether a process
     /// belongs to the primary or secondary group. Intuitively, if the amount of
@@ -95,13 +96,13 @@ impl<T: Copy + Default, const N: usize> Classifier<T, N> {
     /// greater than the knowledge bound, then it is placed in the primary group.
     /// If the amount of knowledge a process has is less than the knowledge bound,
     /// it is placed in the secondary group.
-    fn classify(&self, i: usize, knowledge_bound: u32, view: View<T, N>) -> ProcessGroup<T, N> {
+    fn classify(&self, i: usize, knowledge_bound: u32, view: View<T, N>) -> Group<T, N> {
         self.registers[i].write(view);
         let union = View::union_many(self.collect());
         if union.size() > knowledge_bound {
-            Primary(union)
+            Group::Primary(union)
         } else {
-            Secondary(view)
+            Group::Secondary
         }
     }
 }
@@ -113,37 +114,38 @@ pub struct AtomicSnapshot<T: Copy + Default, const N: usize, const M: u32> {
 }
 
 impl<T: Copy + Default, const N: usize, const M: u32> AtomicSnapshot<T, N, M> {
-
-    fn left_label(label: u32, level: u32) -> u32 {
-        label - (M/2_u32.pow(level + 1))
-    }
-
-    fn right_label(label: u32, level: u32) -> u32 {
-        label + (M/2_u32.pow(level + 1))
-    }
-
+    
+    /// Reads from each register and returns an array of the results.
     fn collect(&self) -> View<T, N> {
         View {
             components: from_fn(|i| self.components[i].read())
         }
     }
     
+    /// Returns an array of values based on the contents of the snapshot object. 
+    ///
+    /// The values are determined by having the process traverse through log_2(M) 
+    /// levels of a complete binary tree. At each level, the knowledge the process
+    /// has about the contents of the snapshot object either increases (and the 
+    /// process decends to the right) or stays the same (and the process decends to
+    /// the left). Once the process reaches a leaf, it returns an array of values
+    /// based on the knowledge it obtained during this traversal. 
     fn traverse(i: usize, node: &Box<CompleteBinaryTree<Classifier<T, N>>>, view: View<T, N>, label: u32) -> [T; N] {
         match &**node {
-            Leaf(cls) => {
+            CompleteBinaryTree::Leaf(cls) => {
                 match cls.classify(i, label, view) {
-                    Primary(union) => return union.components.map(|c| c.value),
-                    Secondary(_) => return view.components.map(|c| c.value),
+                    Group::Primary(union) => return union.values(),
+                    Group::Secondary => return view.values()
                 }
             },
-            Node(cls, left, right) => {
+            CompleteBinaryTree::Node(cls, left, right) => {
                 match cls.classify(i, label, view) {
-                    Primary(union) => {
-                        let label = Self::right_label(label, right.level());
+                    Group::Primary(union) => {
+                        let label = label + (M/2_u32.pow(right.level() + 1));
                         Self::traverse(i, &right, union, label)
                     },
-                    Secondary(_) => {
-                        let label = Self::left_label(label, left.level());
+                    Group::Secondary => {
+                        let label = label - (M/2_u32.pow(left.level() + 1));
                         Self::traverse(i, &left, view, label)
                     }
                 }
@@ -168,10 +170,12 @@ impl<T: Copy + Default, const N: usize, const M: u32> Snapshot<N> for AtomicSnap
     type Value = T;
 
     fn new() -> Self {
-        // The height of the complete binary tree should be log_2(M), but
-        // computing logs of generic integers requires type-casts.
-        let num_shots: f32 = num_traits::cast(M).unwrap();
-        let height: u32 = num_traits::cast(num_shots.log2()).unwrap();
+        // log_2(M) must be an integer to construct a complete binary tree of
+        // that height.
+        if !((M as f32).log2() == (M as f32).log2().floor()) {
+            panic!("The number M of supported operations must be a power of 2")
+        }
+        let height = (M as f32).log2().floor() as u32;
         Self {
             components: [(); N].map(|_| AtomicRegister::new()),
             root: Box::new(CompleteBinaryTree::new(height)),
@@ -207,8 +211,11 @@ impl<T: Default> CompleteBinaryTree<T> {
         }
     }
 
-    /// Returns the level of the node inside the tree.
-    // TODO: Memoize this.
+    /// Returns the _level_ of the node inside the tree.
+    ///
+    /// The level of a node is the height of the tree rooted
+    /// at that node.
+    // TODO: This recursive implementation is slow... Should memoize this.
     fn level(&self) -> u32 {
         match self {
             Self::Leaf(_) => 1,
