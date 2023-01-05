@@ -168,7 +168,13 @@ impl<T: Copy + Default, const N: usize, const M: u32> AtomicSnapshot<T, N, M> {
 
 impl<T: Copy + Default, const N: usize, const M: u32> Snapshot<N> for AtomicSnapshot<T, N, M> {
     type Value = T;
-
+    
+    /// Create a new snapshot object. 
+    ///
+    /// # Panics
+    ///
+    /// This method will panic if M, the number of operations that can be 
+    /// applied to the object, is not a power of 2. 
     fn new() -> Self {
         // log_2(M) must be an integer to construct a complete binary tree of
         // that height.
