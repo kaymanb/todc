@@ -128,8 +128,8 @@ impl<T: Copy + Default, const N: usize, const M: u32> AtomicSnapshot<T, N, M> {
         }
     }
     
-    fn traverse(i: usize, node: Box<CompleteBinaryTree<Classifier<T, N>>>, view: View<T, N>, label: u32) -> [T; N] {
-        match *node {
+    fn traverse(i: usize, node: &Box<CompleteBinaryTree<Classifier<T, N>>>, view: View<T, N>, label: u32) -> [T; N] {
+        match &**node {
             Leaf(cls) => {
                 match cls.classify(i, label, view) {
                     Primary(union) => return union.components.map(|c| c.value),
@@ -140,11 +140,11 @@ impl<T: Copy + Default, const N: usize, const M: u32> AtomicSnapshot<T, N, M> {
                 match cls.classify(i, label, view) {
                     Primary(union) => {
                         let label = Self::right_label(label, right.level());
-                        Self::traverse(i, right, union, label)
+                        Self::traverse(i, &right, union, label)
                     },
                     Secondary(_) => {
                         let label = Self::left_label(label, left.level());
-                        Self::traverse(i, left, view, label)
+                        Self::traverse(i, &left, view, label)
                     }
                 }
             }
@@ -160,7 +160,7 @@ impl<T: Copy + Default, const N: usize, const M: u32> AtomicSnapshot<T, N, M> {
             counter: component.counter + 1,
             sequence: component.sequence + 1
         });
-        Self::traverse(i, self.root, self.collect(), M)
+        Self::traverse(i, &self.root, self.collect(), M)
     }
 }
 
