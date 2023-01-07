@@ -1,46 +1,15 @@
-use std::sync::atomic::Ordering;
-
-use ::atomic::Atomic;
+use crate::sync::Mutex;
 
 use super::Register;
 
-/// An atomic shared-memory register.
+
+/// An "atomic" shared-memory register.
 ///
-/// Native atomic instructions are used if they are available for `T`,
-/// along with the strongest available memory ordering, Sequential Consistency.
-///
-/// Otherwise, the implementation falls-back to a spinlock based mechansim to
-/// prevent concurrent access.
-///
-/// **Note:** Sequential consistency is slightly weaker than linearizability,
-/// the synchronization condition usually associated with atomic memory.
-/// In particular, sequentially consistent objects are not _composable_,
-/// meaning that a program built of multiple sequentially consistent objects
-/// might itself fail to be sequentially consistent.  
-///
-/// Fortunately, it has been shown that in asynchronous systems any program that
-/// is linearizable when implemented from linearizable base objects is also
-/// sequentially consistent when implemented from sequentially consistent base
-/// objects [\[PPMG16\]](https://arxiv.org/abs/1607.06258). What this means is that,
-/// for the purpose of implementing linearizable objects from atomic registers,
-/// we are free to use sequentially consistent registers, like the one
-/// implemented here, instead. The price we pay is that the implemented object
-/// will also only be sequentially consistent.
+/// This object uses a mutex to protect against concurrent memory access, 
+/// and is not lock-free. 
 #[derive(Debug)]
 pub struct AtomicRegister<T: Copy + Default> {
-    data: Atomic<T>,
-    ordering: Ordering,
-}
-
-impl<T: Copy + Default> AtomicRegister<T> {
-    /// Creates a new atomic register with specified initial value and
-    /// memory ordering.
-    fn new_with_order(ordering: Ordering) -> Self {
-        Self {
-            data: Atomic::new(T::default()),
-            ordering: ordering,
-        }
-    }
+    mutex: Mutex<T>
 }
 
 impl<T: Copy + Default> Default for AtomicRegister<T> {
@@ -54,17 +23,19 @@ impl<T: Copy + Default> Register for AtomicRegister<T> {
 
     /// Creates a new atomic register with specified initial value.
     fn new() -> Self {
-        AtomicRegister::new_with_order(Ordering::SeqCst)
+        AtomicRegister {
+            mutex: Mutex::new(T::default())
+        }
     }
 
     /// Returns the contents of the register.
     fn read(&self) -> Self::Value {
-        self.data.load(self.ordering)
+        *self.mutex.lock().unwrap()
     }
 
     /// Sets the contents of the register.
     fn write(&self, value: Self::Value) -> () {
-        self.data.store(value, self.ordering)
+        *self.mutex.lock().unwrap() = value;
     }
 }
 
@@ -107,12 +78,12 @@ mod tests {
 
         #[test]
         fn test_new() {
-            AtomicRegister::<usize>::new();
+            AtomicRegister::<u32>::new();
         }
 
         #[test]
         fn test_read() {
-            let register: AtomicRegister<usize> = AtomicRegister::new();
+            let register: AtomicRegister<u32> = AtomicRegister::new();
             assert_eq!(0, register.read());
         }
 

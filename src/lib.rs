@@ -2,3 +2,4 @@
 
 pub mod register;
 pub mod snapshot;
+pub mod sync;
