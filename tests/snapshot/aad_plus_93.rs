@@ -22,8 +22,11 @@ mod unbounded_atomic_snapshot {
                 let snapshot = Arc::clone(&snapshot);
                 handles.push(thread::spawn(move || {
                     snapshot.update(i, Some(i + 1));
+                    let view = snapshot.scan(i);
                     let mut results = results.lock().unwrap();
-                    results.push(snapshot.scan(i));
+                    results.push(view);
+
+                    assert_eq!(Some(i + 1), view[i]);
                 }));
             }
 
@@ -54,8 +57,11 @@ mod bounded_atomic_snapshot {
                 let snapshot = Arc::clone(&snapshot);
                 handles.push(thread::spawn(move || {
                     snapshot.update(i, Some(i + 1));
+                    let view = snapshot.scan(i);
                     let mut results = results.lock().unwrap();
-                    results.push(snapshot.scan(i));
+                    results.push(view);
+
+                    assert_eq!(Some(i + 1), view[i]);
                 }));
             }
 
