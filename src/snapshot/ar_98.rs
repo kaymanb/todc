@@ -131,23 +131,23 @@ impl<T: Copy + Default, const N: usize, const M: u32> AtomicSnapshot<T, N, M> {
     /// based on the knowledge it obtained during this traversal.
     fn traverse(
         i: usize,
-        node: &Box<CompleteBinaryTree<Classifier<T, N>>>,
+        node: &CompleteBinaryTree<Classifier<T, N>>,
         view: View<T, N>,
         label: u32,
     ) -> [T; N] {
-        match &**node {
+        match &*node {
             CompleteBinaryTree::Leaf(cls) => match cls.classify(i, label, view) {
-                Group::Primary(union) => return union.values(),
-                Group::Secondary => return view.values(),
+                Group::Primary(union) => union.values(),
+                Group::Secondary => view.values(),
             },
             CompleteBinaryTree::Node(cls, left, right) => match cls.classify(i, label, view) {
                 Group::Primary(union) => {
                     let label = label + (M / 2_u32.pow(right.level() + 1));
-                    Self::traverse(i, &right, union, label)
+                    Self::traverse(i, right, union, label)
                 }
                 Group::Secondary => {
                     let label = label - (M / 2_u32.pow(left.level() + 1));
-                    Self::traverse(i, &left, view, label)
+                    Self::traverse(i, left, view, label)
                 }
             },
         }
@@ -192,7 +192,7 @@ impl<T: Copy + Default, const N: usize, const M: u32> Snapshot<N> for AtomicSnap
         self.scate(i, self.components[i].read().value)
     }
 
-    fn update(&self, i: usize, value: Self::Value) -> () {
+    fn update(&self, i: usize, value: Self::Value) {
         self.scate(i, value);
     }
 }

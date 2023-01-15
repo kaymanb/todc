@@ -14,5 +14,5 @@ pub trait Snapshot<const N: usize> {
     fn scan(&self, i: usize) -> [Self::Value; N];
 
     /// Sets contents of the ith component to the specified value.
-    fn update(&self, i: usize, value: Self::Value) -> ();
+    fn update(&self, i: usize, value: Self::Value);
 }

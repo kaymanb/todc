@@ -33,7 +33,7 @@ impl<T: Copy + Default> Register for AtomicRegister<T> {
     }
 
     /// Sets the contents of the register.
-    fn write(&self, value: Self::Value) -> () {
+    fn write(&self, value: Self::Value) {
         *self.mutex.lock().unwrap() = value;
     }
 }

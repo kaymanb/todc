@@ -75,7 +75,7 @@ impl<T: Copy + Default, const N: usize> Snapshot<N> for UnboundedAtomicSnapshot<
         }
     }
 
-    fn update(&self, i: usize, value: Self::Value) -> () {
+    fn update(&self, i: usize, value: Self::Value) {
         // Update the contents of the ith register with the
         // new value, an incremented sequence number, and the result
         // of a scan.
@@ -173,7 +173,7 @@ impl<T: Copy + Default, const N: usize> Snapshot<N> for BoundedAtomicSnapshot<T,
         }
     }
 
-    fn update(&self, i: usize, value: Self::Value) -> () {
+    fn update(&self, i: usize, value: Self::Value) {
         // Update the contents of the ith register with the new value, the
         // result of a scan, and negated handshake and toggle bits.
         let handshakes: [bool; N] = from_fn(|j| !self.q[j][i].read());
