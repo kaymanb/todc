@@ -1,12 +1,16 @@
 use std::fmt::Debug;
 
 // TODO
-pub fn assert_maximal_view_exists<T: Default + PartialEq, const N: usize>(views: &Vec<[T; N]>) {    
-    assert!(views.iter().any(|view| view.iter().all(|val| *val != T::default())));
+pub fn assert_maximal_view_exists<T: Default + PartialEq, const N: usize>(views: &Vec<[T; N]>) {
+    assert!(views
+        .iter()
+        .any(|view| view.iter().all(|val| *val != T::default())));
 }
 
 // TODO
-pub fn assert_views_are_comparable<T: Debug + Default + PartialEq, const N: usize>(views: &Vec<[T;N]>) {
+pub fn assert_views_are_comparable<T: Debug + Default + PartialEq, const N: usize>(
+    views: &Vec<[T; N]>,
+) {
     for view1 in views {
         for view2 in views {
             for i in 0..N {

@@ -1,8 +1,8 @@
 //! Implementations of atomic snapshot objects based on the paper by
 //! Attiya and Rachman [[AR93]](https://doi.org/10.1137/S0097539795279463).
-use core::array::from_fn;
 use super::Snapshot;
 use crate::register::{AtomicRegister, Register};
+use core::array::from_fn;
 
 /// The contents of one component of a snapshot object.
 #[derive(Clone, Copy, Default)]
@@ -40,7 +40,7 @@ impl<T: Copy + Default, const N: usize> View<T, N> {
     fn size(&self) -> u32 {
         self.components.map(|c| c.counter).iter().sum()
     }
-    
+
     /// Returns an array of values stored in the components of the view.
     fn values(&self) -> [T; N] {
         self.components.map(|c| c.value)
@@ -59,7 +59,7 @@ impl<T: Copy + Default, const N: usize> Default for View<T, N> {
 /// of a snapshot object.
 enum Group<T: Copy + Default, const N: usize> {
     Primary(View<T, N>),
-    Secondary
+    Secondary,
 }
 
 /// An object for classifying processes into two disjoint groups and updating
@@ -81,12 +81,12 @@ impl<T: Copy + Default, const N: usize> Classifier<T, N> {
     fn collect(&self) -> [View<T, N>; N] {
         from_fn(|i| self.registers[i].read())
     }
-    
+
     /// Classify the input process into either a _primary_ or _secondary group_, and
     /// update the knowledge the process has about contents of the snapshot object.
     ///
     /// Calling processes are classified into disjoint groups. Processes in the primary
-    /// group may learn additional information about the contents of the snapshot 
+    /// group may learn additional information about the contents of the snapshot
     /// object, and recieve an updated view in response. Processes in the secondary
     /// group retain their original knowledge.
     ///
@@ -114,43 +114,43 @@ pub struct AtomicSnapshot<T: Copy + Default, const N: usize, const M: u32> {
 }
 
 impl<T: Copy + Default, const N: usize, const M: u32> AtomicSnapshot<T, N, M> {
-    
     /// Reads from each register and returns an array of the results.
     fn collect(&self) -> View<T, N> {
         View {
-            components: from_fn(|i| self.components[i].read())
+            components: from_fn(|i| self.components[i].read()),
         }
     }
-    
-    /// Returns an array of values based on the contents of the snapshot object. 
+
+    /// Returns an array of values based on the contents of the snapshot object.
     ///
-    /// The values are determined by having the process traverse through log_2(M) 
+    /// The values are determined by having the process traverse through log_2(M)
     /// levels of a complete binary tree. At each level, the knowledge the process
-    /// has about the contents of the snapshot object either increases (and the 
+    /// has about the contents of the snapshot object either increases (and the
     /// process decends to the right) or stays the same (and the process decends to
     /// the left). Once the process reaches a leaf, it returns an array of values
-    /// based on the knowledge it obtained during this traversal. 
-    fn traverse(i: usize, node: &Box<CompleteBinaryTree<Classifier<T, N>>>, view: View<T, N>, label: u32) -> [T; N] {
+    /// based on the knowledge it obtained during this traversal.
+    fn traverse(
+        i: usize,
+        node: &Box<CompleteBinaryTree<Classifier<T, N>>>,
+        view: View<T, N>,
+        label: u32,
+    ) -> [T; N] {
         match &**node {
-            CompleteBinaryTree::Leaf(cls) => {
-                match cls.classify(i, label, view) {
-                    Group::Primary(union) => return union.values(),
-                    Group::Secondary => return view.values()
+            CompleteBinaryTree::Leaf(cls) => match cls.classify(i, label, view) {
+                Group::Primary(union) => return union.values(),
+                Group::Secondary => return view.values(),
+            },
+            CompleteBinaryTree::Node(cls, left, right) => match cls.classify(i, label, view) {
+                Group::Primary(union) => {
+                    let label = label + (M / 2_u32.pow(right.level() + 1));
+                    Self::traverse(i, &right, union, label)
+                }
+                Group::Secondary => {
+                    let label = label - (M / 2_u32.pow(left.level() + 1));
+                    Self::traverse(i, &left, view, label)
                 }
             },
-            CompleteBinaryTree::Node(cls, left, right) => {
-                match cls.classify(i, label, view) {
-                    Group::Primary(union) => {
-                        let label = label + (M/2_u32.pow(right.level() + 1));
-                        Self::traverse(i, &right, union, label)
-                    },
-                    Group::Secondary => {
-                        let label = label - (M/2_u32.pow(left.level() + 1));
-                        Self::traverse(i, &left, view, label)
-                    }
-                }
-            }
-        } 
+        }
     }
 
     /// Returns a view of the snapshot object and updates the ith component to
@@ -160,7 +160,7 @@ impl<T: Copy + Default, const N: usize, const M: u32> AtomicSnapshot<T, N, M> {
         self.components[i].write(Component {
             value,
             counter: component.counter + 1,
-            sequence: component.sequence + 1
+            sequence: component.sequence + 1,
         });
         Self::traverse(i, &self.root, self.collect(), M)
     }
@@ -168,13 +168,13 @@ impl<T: Copy + Default, const N: usize, const M: u32> AtomicSnapshot<T, N, M> {
 
 impl<T: Copy + Default, const N: usize, const M: u32> Snapshot<N> for AtomicSnapshot<T, N, M> {
     type Value = T;
-    
-    /// Create a new snapshot object. 
+
+    /// Create a new snapshot object.
     ///
     /// # Panics
     ///
-    /// This method will panic if M, the number of operations that can be 
-    /// applied to the object, is not a power of 2. 
+    /// This method will panic if M, the number of operations that can be
+    /// applied to the object, is not a power of 2.
     fn new() -> Self {
         // log_2(M) must be an integer to construct a complete binary tree of
         // that height.

@@ -2,14 +2,13 @@ use crate::sync::Mutex;
 
 use super::Register;
 
-
 /// An "atomic" shared-memory register.
 ///
-/// This object uses a mutex to protect against concurrent memory access, 
-/// and is not lock-free. 
+/// This object uses a mutex to protect against concurrent memory access,
+/// and is not lock-free.
 #[derive(Debug)]
 pub struct AtomicRegister<T: Copy + Default> {
-    mutex: Mutex<T>
+    mutex: Mutex<T>,
 }
 
 impl<T: Copy + Default> Default for AtomicRegister<T> {
@@ -24,7 +23,7 @@ impl<T: Copy + Default> Register for AtomicRegister<T> {
     /// Creates a new atomic register with specified initial value.
     fn new() -> Self {
         AtomicRegister {
-            mutex: Mutex::new(T::default())
+            mutex: Mutex::new(T::default()),
         }
     }
 

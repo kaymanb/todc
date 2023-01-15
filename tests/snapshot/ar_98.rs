@@ -1,5 +1,5 @@
+use loom::{sync::Mutex, thread};
 use std::sync::Arc;
-use loom::{thread, sync::Mutex};
 use todc::snapshot::Snapshot;
 
 use super::common;
@@ -15,7 +15,8 @@ mod atomic_snapshot {
         loom::model(|| {
             let results = Arc::new(Mutex::new(vec![]));
             let mut handles = vec![];
-            let snapshot: Arc<AtomicSnapshot<Option<usize>, NUM_THREADS, 8>> = Arc::new(AtomicSnapshot::new());
+            let snapshot: Arc<AtomicSnapshot<Option<usize>, NUM_THREADS, 8>> =
+                Arc::new(AtomicSnapshot::new());
 
             for i in 0..NUM_THREADS {
                 let results = Arc::clone(&results);
@@ -33,7 +34,7 @@ mod atomic_snapshot {
             for handle in handles {
                 handle.join().unwrap();
             }
-            
+
             let views = &*results.lock().unwrap();
             common::assert_maximal_view_exists(views);
             common::assert_views_are_comparable(views);
