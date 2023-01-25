@@ -1,10 +1,8 @@
 //! Checking [linearizability](https://en.wikipedia.org/wiki/Linearizability).  
 //!
-//! See _Testing for Linearizability_ by Gavin Lowe [[L16]](https://doi.org/10.1002/cpe.3928) and
+//! See _Testing for Linearizability_ by Gavin Lowe [\[L16\]](https://doi.org/10.1002/cpe.3928) and
 //! _Faster Linearizability Checking via P-Compositionality_ by Horn and Kroening
-//! [[HK15]](https://arxiv.org/abs/1504.00204).
-//!
-//! For a Go implementation, see [Porcupine](https://github.com/anishathalye/porcupine).
+//! [\[HK15\]](https://arxiv.org/abs/1504.00204). For a Go implementation, see [Porcupine](https://github.com/anishathalye/porcupine).
 use std::cell::RefCell;
 use std::collections::HashSet;
 use std::hash::Hash;

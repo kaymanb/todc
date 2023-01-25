@@ -140,7 +140,7 @@ mod tests {
         }
 
         #[test]
-        fn test_entry_retains_links() {
+        fn test_retains_links_to_sibling_entries() {
             let start = new_history_of_len(3);
             let middle = start.borrow().next.clone().unwrap();
             middle.borrow().lift();
@@ -149,6 +149,8 @@ mod tests {
             let next = middle.borrow().next.clone();
             assert_eq!(next.unwrap().borrow().id, 3)
         }
+
+        // TODO: Test that return entry is also bypassed. 
 
 
     }

@@ -14,5 +14,5 @@ pub trait Register {
     fn read(&self) -> Self::Value;
 
     /// Sets contents of the register to the specified value.
-    fn write(&self, value: Self::Value) -> ();
+    fn write(&self, value: Self::Value);
 }

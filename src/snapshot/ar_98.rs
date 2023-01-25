@@ -1,5 +1,5 @@
 //! Implementations of atomic snapshot objects based on the paper by
-//! Attiya and Rachman [[AR93]](https://doi.org/10.1137/S0097539795279463).
+//! Attiya and Rachman [\[AR93\]](https://doi.org/10.1137/S0097539795279463).
 use super::Snapshot;
 use crate::register::{AtomicRegister, Register};
 use core::array::from_fn;
@@ -135,7 +135,7 @@ impl<T: Copy + Default, const N: usize, const M: u32> AtomicSnapshot<T, N, M> {
         view: View<T, N>,
         label: u32,
     ) -> [T; N] {
-        match &*node {
+        match node {
             CompleteBinaryTree::Leaf(cls) => match cls.classify(i, label, view) {
                 Group::Primary(union) => union.values(),
                 Group::Secondary => view.values(),
