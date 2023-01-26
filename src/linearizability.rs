@@ -8,7 +8,7 @@ use std::collections::HashSet;
 use std::hash::Hash;
 use std::rc::Rc;
 
-use crate::linearizability::entry::Entry;
+pub use crate::linearizability::entry::Entry;
 
 mod entry;
 
