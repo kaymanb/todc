@@ -6,9 +6,6 @@ pub type EntryLink<T> = Option<Rc<RefCell<Entry<T>>>>;
 
 /// An entry.
 ///
-/// An objects history is represented by a doubly-linked-list of entries, each of which
-/// represents either a call or return of an operation performed on the object.
-///
 /// Entries in a history can either be a _call_ entry, indicating that at operation has started,
 /// or a _return_ entry, indicating that an operation has finished. In a _complete_ history, each
 /// call entry has a corresponding return entry.
