@@ -1,26 +1,26 @@
 //! A history.
+use std::ops::{Index, IndexMut};
 
+#[derive(PartialEq, Eq, Clone, Debug)]
 struct Entry<T> {
     id: usize,
     operation: T,
     rtrn: Option<usize>,
-    idx: Option<usize>, // TODO: Rename to index
+    index: Option<usize>,
 }
 
+#[derive(PartialEq, Eq, Clone, Debug)]
 struct History<T> {
     pub entries: Vec<Entry<T>>,
 }
 
 impl<T> History<T> {
     pub fn from_vec(ops: Vec<T>) -> Self {
-        let len = ops.len();
-        let entries = ops.into_iter().enumerate().map(|(i, op)| {
-            Entry {
-                id: i,
-                operation: op,
-                rtrn: None,
-                idx: None
-            }
+        let entries = ops.into_iter().enumerate().map(|(i, op)| Entry {
+            id: i,
+            operation: op,
+            rtrn: None,
+            index: None,
         });
         Self {
             entries: entries.collect(),
@@ -28,9 +28,9 @@ impl<T> History<T> {
     }
 
     fn insert(&mut self, mut entry: Entry<T>) {
-        let idx = entry.idx.unwrap(); 
-        entry.idx = None;
-        self.entries.insert(idx, entry);
+        let index = entry.index.unwrap();
+        entry.index = None;
+        self.entries.insert(index, entry);
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &Entry<T>> {
@@ -40,24 +40,41 @@ impl<T> History<T> {
     pub fn len(&self) -> usize {
         self.entries.len()
     }
-    
+
     pub fn lift(&mut self, i: usize) -> (Entry<T>, Entry<T>) {
         let call_entry = self.remove(i);
         // Use types to prevent these unwraps.
-        let return_index = self.iter().position(|e| e.id == call_entry.rtrn.unwrap()).unwrap();
+        let return_index = self
+            .iter()
+            .position(|e| e.id == call_entry.rtrn.unwrap())
+            .unwrap();
         let return_entry = self.remove(return_index);
         (call_entry, return_entry)
     }
 
     fn remove(&mut self, i: usize) -> Entry<T> {
         let mut entry = self.entries.remove(i);
-        entry.idx = Some(i);
+        entry.index = Some(i);
         entry
     }
-    
+
     fn unlift(&mut self, call: Entry<T>, rtrn: Entry<T>) {
         self.insert(rtrn);
         self.insert(call);
+    }
+}
+
+impl<T> Index<usize> for History<T> {
+    type Output = Entry<T>;
+
+    fn index(&self, i: usize) -> &Self::Output {
+        self.entries.index(i)
+    }
+}
+
+impl<T> IndexMut<usize> for History<T> {
+    fn index_mut(&mut self, i: usize) -> &mut Self::Output {
+        self.entries.index_mut(i)
     }
 }
 
@@ -80,7 +97,8 @@ mod tests {
 
     mod insert {
         use super::*;
-        
+
+        #[test]
         fn is_inverse_of_remove() {
             let mut history = History::from_vec(vec!["a", "b", "c"]);
             let entry = history.remove(1);
@@ -93,16 +111,15 @@ mod tests {
 
     mod lift {
         use super::*;
-        
+
         #[test]
         fn removes_call_and_return_entries() {
             let mut history = History::from_vec(vec!["a", "b", "c", "d", "e"]);
-            history.entries[1].rtrn = Some(3); // TODO: Implement Index and IndexMut for History
+            history[1].rtrn = Some(3);
             history.lift(1);
             for (entry, letter) in zip(history.iter(), ["a", "c", "e"]) {
                 assert_eq!(entry.operation, letter);
             }
-
         }
     }
 
@@ -113,7 +130,7 @@ mod tests {
         fn sets_index_correctly() {
             let mut history = History::from_vec(vec!["a", "b", "c"]);
             let entry = history.remove(1);
-            assert_eq!(entry.idx.unwrap(), 1);
+            assert_eq!(entry.index.unwrap(), 1);
         }
 
         #[test]
@@ -128,16 +145,16 @@ mod tests {
 
     mod unlift {
         use super::*;
-        
+
         #[test]
         fn is_inverse_of_lift() {
             let mut history = History::from_vec(vec!["a", "b", "c", "d", "e"]);
-            history.entries[1].rtrn = Some(3);
+            history[1].rtrn = Some(3);
+            let copy = history.clone();
+
             let (call, rtrn) = history.lift(1);
             history.unlift(call, rtrn);
-            for (entry, letter) in zip(history.iter(), ["a", "b", "c", "d", "e"]) {
-                assert_eq!(entry.operation, letter);
-            }
+            assert_eq!(history, copy)
         }
     }
 }
