@@ -2,16 +2,22 @@
 use std::ops::{Index, IndexMut};
 
 #[derive(PartialEq, Eq, Clone, Debug)]
-struct Entry<T> {
-    id: usize,
-    operation: T,
-    rtrn: Option<usize>,
-    index: Option<usize>,
+pub struct Entry<T> {
+    pub id: usize,
+    pub operation: T,
+    pub rtrn: Option<usize>,
+    pub index: Option<usize>,
+}
+
+impl<T> Entry<T> {
+    pub fn is_call(&self) -> bool {
+        self.rtrn.is_some()
+    }
 }
 
 #[derive(PartialEq, Eq, Clone, Debug)]
-struct History<T> {
-    pub entries: Vec<Entry<T>>,
+pub struct History<T> {
+    entries: Vec<Entry<T>>,
 }
 
 impl<T> History<T> {
@@ -58,7 +64,7 @@ impl<T> History<T> {
         entry
     }
 
-    fn unlift(&mut self, call: Entry<T>, rtrn: Entry<T>) {
+    pub fn unlift(&mut self, call: Entry<T>, rtrn: Entry<T>) {
         self.insert(rtrn);
         self.insert(call);
     }
