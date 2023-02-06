@@ -23,7 +23,7 @@ pub trait Specification {
 }
 
 pub struct WLGChecker<S: Specification> {
-    spec: S,
+    pub spec: S,
 }
 
 impl<S: Specification> WLGChecker<S> {
@@ -40,7 +40,10 @@ impl<S: Specification> WLGChecker<S> {
             }
             
             if history[curr].is_call() {
-                let return_index = history[curr].rtrn.unwrap();
+                let return_index = history
+                    .iter()
+                    .position(|e| e.id == history[curr].rtrn.unwrap())
+                    .unwrap();
                 let (is_valid, new_state) = self.spec.apply(history[return_index].operation.clone(), state.clone());
                 let mut tmp_linearized = linearized.clone();
                 tmp_linearized[history[curr].id] = true;

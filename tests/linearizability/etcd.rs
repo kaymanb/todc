@@ -2,7 +2,7 @@ use std::fs::File;
 use std::io::{self, BufRead};
 use std::path::Path;
 
-use todc::linearizability::Specification;
+use todc::linearizability::{WLGChecker, Specification};
 use todc::linearizability::history::{Entry, History};
 
 /// See https://doc.rust-lang.org/rust-by-example/std_misc/file/read_lines.html
@@ -12,16 +12,17 @@ where P: AsRef<Path>, {
     Ok(io::BufReader::new(file).lines())
 }
 
-fn parse_log(filename: String) -> History<EtcdOperation>{
+fn history_from_log(filename: &str, num_processes: usize) -> History<EtcdOperation>{
     let mut count = 0;
     let mut entries: Vec<Entry<EtcdOperation>> = Vec::new();
-    let mut calls: Vec<Option<usize>> = Vec::new();
+    let mut calls: Vec<Option<usize>> = vec![None; num_processes + 1];
     for line in read_lines(filename).unwrap() {
         let line = line.unwrap();
         let words: Vec<&str> = line.split_whitespace().collect();
+        if words.len() < 7 { continue };
         if words[1] != "jepsen.util" { continue };
         if words[3] == ":nemesis" { continue };
-
+        
         let process: usize = words[3].parse().unwrap();
         let status = EtcdStatus::from_log(words[4]);
         let entry = Entry {
@@ -41,6 +42,7 @@ fn parse_log(filename: String) -> History<EtcdOperation>{
                 Some(index) => entries[index].rtrn = Some(count),
                 None => panic!("Process returned from non-existent call")
             }
+            calls[process] = None;
 
         }
         entries.push(entry);
@@ -105,7 +107,7 @@ impl EtcdOperation {
             let value: Option<(u32, u32)> = if words[2] == ":timed-out" {
                 None
             } else {
-                Some((words[2][1..].parse().unwrap(), words[3][1..].parse().unwrap()))
+                Some((words[2][1..].parse().unwrap(), words[3][..1].parse().unwrap()))
             };
             Self::CompareAndSwap(status, value)
         } else {
@@ -167,3 +169,25 @@ impl Specification for EtcdSpecification {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*; 
+
+    #[test]
+    fn verifies_log_000_is_not_linearizable() {
+        let checker = WLGChecker {
+            spec: EtcdSpecification {}
+        };        
+        let result = checker.is_linearizable(history_from_log("tests/linearizability/etcd/etcd_000.log", 40));
+        assert_eq!(result, false);
+    }
+
+    #[test]
+    fn verifies_log_007_is_linearizable() {
+        let checker = WLGChecker {
+            spec: EtcdSpecification {}
+        };        
+        let result = checker.is_linearizable(history_from_log("tests/linearizability/etcd/etcd_007.log", 40));
+        assert_eq!(result, true);
+    }
+}
