@@ -17,7 +17,7 @@ impl<T> Entry<T> {
 
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub struct History<T> {
-    entries: Vec<Entry<T>>,
+    pub entries: Vec<Entry<T>>,
 }
 
 impl<T> History<T> {

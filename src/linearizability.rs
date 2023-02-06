@@ -9,7 +9,7 @@ use std::fmt::Debug;
 use std::hash::Hash;
 use crate::linearizability::history::{History, Entry};
 
-mod history;
+pub mod history;
 
 pub trait Specification {
     type State: Clone + Eq + Hash;
@@ -40,7 +40,8 @@ impl<S: Specification> WLGChecker<S> {
             }
             
             if history[curr].is_call() {
-                let (is_valid, new_state) = self.spec.apply(history[curr].operation.clone(), state.clone());
+                let return_index = history[curr].rtrn.unwrap();
+                let (is_valid, new_state) = self.spec.apply(history[return_index].operation.clone(), state.clone());
                 let mut tmp_linearized = linearized.clone();
                 tmp_linearized[history[curr].id] = true;
 
