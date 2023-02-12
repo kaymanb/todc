@@ -5,9 +5,17 @@ use std::ops::{Index, IndexMut};
 type EntryID = usize;
 
 #[derive(PartialEq, Eq, Clone, Debug)]
+pub enum Action<T> {
+    Call(T),
+    Response(T),
+}
+
+use Action::*;
+
+#[derive(PartialEq, Eq, Clone, Debug)]
 pub struct Entry<T> {
     pub id: EntryID,
-    pub operation: T,
+    pub action: Action<T>,
     pub response: Option<EntryID>,
 }
 
@@ -25,37 +33,38 @@ pub struct History<T> {
 }
 
 impl<T> History<T> {
-    pub fn from_ops(ops: Vec<T>) -> Self {
-        let num_entries = ops.len();
-        let entries = ops.into_iter().enumerate().map(|(i, op)| Entry {
-            id: i,
-            operation: op,
-            response: None,
-        });
-        Self {
-            entries: entries.collect(),
-            removed_from: repeat_with(|| None).take(num_entries).collect(),
-        }
-    }
-
     /// # Panics
     ///
-    /// Panics if `ops` is empty.
-    // pub fn from_ops_with_ids(ops: Vec<(usize, T)>) -> Self {
-    //     let (ids, ops): (Vec<usize>, Vec<T>) = ops.into_iter().unzip();
-    //     let mut history = Self::from_ops(ops);
+    /// Panics if `actions` is empty.
+    pub fn from_actions(actions: Vec<(usize, Action<T>)>) -> Self {
+        let (processes, actions): (Vec<usize>, Vec<Action<T>>) = actions.into_iter().unzip();
+        let mut history = Self {
+            entries: actions
+                .into_iter()
+                .enumerate()
+                .map(|(i, action)| Entry {
+                    id: i,
+                    action,
+                    response: None,
+                })
+                .collect(),
+            removed_from: repeat_with(|| None).take(processes.len()).collect(),
+        };
 
-    //     // TODO: Figure this out... What if this isn't an invocation>?
-    //     let num_processes = ids.iter().max().unwrap();
-    //     let calls: Vec<Option<usize>> = repeat_with(|| None).take(*num_processes).collect();
-    //     for (index, id) in ids.iter().enumerate() {
-    //         match calls[id] {
-    //             Some(invoke_idx) => {
-    //                 history[invoke_idx].response = Some(index)
-    //             }
-    //         }
-    //     }
-    // }
+        // Link associated call and response actions within the history
+        let num_processes = processes.iter().max().unwrap();
+        let mut calls: Vec<Option<usize>> = repeat_with(|| None).take(*num_processes + 1).collect();
+        // TODO: Validate that the history is valid and complete.
+        for (idx, process) in processes.iter().enumerate() {
+            match &history[idx].action {
+                Call(_) => {
+                    calls[*process] = Some(idx);
+                }
+                Response(_) => history[calls[*process].unwrap()].response = Some(history[idx].id),
+            }
+        }
+        return history;
+    }
 
     pub fn index_of(&self, id: EntryID) -> usize {
         self.iter().position(|e| e.id == id).unwrap()
@@ -122,14 +131,65 @@ mod tests {
     use super::*;
     use std::iter::zip;
 
-    mod from_ops {
+    mod from_actions {
         use super::*;
 
         #[test]
         fn creates_sequential_ids() {
-            let history = History::from_ops(vec!["a", "b", "c"]);
+            let history =
+                History::from_actions(vec![(0, Call("a")), (1, Call("b")), (2, Call("c"))]);
             for (i, entry) in history.iter().enumerate() {
                 assert_eq!(entry.id, i);
+            }
+        }
+
+        #[test]
+        fn links_actions_of_multiple_processes() {
+            let history = History::from_actions(vec![
+                (0, Call("a")),
+                (1, Call("b")),
+                (2, Call("c")),
+                (3, Call("d")),
+                (3, Response("d")),
+                (2, Response("c")),
+                (1, Response("b")),
+                (0, Response("a")),
+            ]);
+            for entry in history.clone().iter() {
+                match entry.action {
+                    Call(call_letter) => {
+                        let idx = history.index_of(entry.response.unwrap());
+                        match history[idx].action {
+                            Call(_) => panic!("Call action cannot be a response"),
+                            Response(response_letter) => assert_eq!(call_letter, response_letter)
+                        }
+                    },
+                    Response(_) => assert!(entry.response.is_none()),
+                }
+            }
+        }
+
+        #[test]
+        fn links_actions_of_single_process() {
+            let history = History::from_actions(vec![
+                (0, Call("a")),
+                (0, Response("a")),
+                (0, Call("b")),
+                (0, Response("b")),
+                (0, Call("c")),
+                (0, Response("c")),
+            ]);
+            for entry in history.clone().iter() {
+                match entry.action {
+                    Call(call_letter) => {
+                        let idx = history.index_of(entry.response.unwrap());
+                        match history[idx].action {
+                            Call(_) => panic!("Call action cannot be a response"),
+                            Response(response_letter) => assert_eq!(call_letter, response_letter)
+                        }
+                    },
+                    Response(_) => assert!(entry.response.is_none()),
+                }
             }
         }
     }
@@ -139,11 +199,13 @@ mod tests {
 
         #[test]
         fn is_inverse_of_remove() {
-            let mut history = History::from_ops(vec!["a", "b", "c"]);
-            let entry = history.remove(1);
-            history.insert(entry);
-            for (entry, letter) in zip(history.iter(), ["a", "b", "c"]) {
-                assert_eq!(entry.operation, letter);
+            let history =
+                History::from_actions(vec![(0, Call("a")), (1, Call("b")), (2, Call("c"))]);
+            let mut copy = history.clone();
+            let entry = copy.remove(1);
+            copy.insert(entry);
+            for (copy, entry) in zip(copy.iter(), history.iter()) {
+                assert_eq!(copy, entry);
             }
         }
     }
@@ -152,12 +214,19 @@ mod tests {
         use super::*;
 
         #[test]
-        fn removes_call_and_return_entries() {
-            let mut history = History::from_ops(vec!["a", "b", "c", "d", "e"]);
-            history[1].response = Some(3);
-            history.lift(1);
-            for (entry, letter) in zip(history.iter(), ["a", "c", "e"]) {
-                assert_eq!(entry.operation, letter);
+        fn removes_call_and_response_entries() {
+            let mut history = History::from_actions(vec![
+                (0, Call("a")),
+                (1, Call("b")),
+                (0, Response("a")),
+                (2, Call("c")),
+            ]);
+            history.lift(0);
+            for (entry, letter) in zip(history.iter(), ["b", "c"]) {
+                match entry.action {
+                    Call(value) => assert_eq!(value, letter),
+                    Response(_) => panic!("Unexpected action"),
+                }
             }
         }
     }
@@ -167,10 +236,14 @@ mod tests {
 
         #[test]
         fn removes_only_requested_entry() {
-            let mut history = History::from_ops(vec!["a", "b", "c", "d"]);
-            assert_eq!("b", history.remove(1).operation);
+            let mut history =
+                History::from_actions(vec![(0, Call("a")), (1, Call("b")), (2, Call("c"))]);
+            assert_eq!(Call("b"), history.remove(1).action);
             for (entry, letter) in zip(history.iter(), ["a", "c", "d"]) {
-                assert_eq!(entry.operation, letter);
+                match entry.action {
+                    Call(value) => assert_eq!(value, letter),
+                    Response(_) => panic!("Unexpected action"),
+                }
             }
         }
     }
@@ -180,11 +253,14 @@ mod tests {
 
         #[test]
         fn is_inverse_of_lift() {
-            let mut history = History::from_ops(vec!["a", "b", "c", "d", "e"]);
-            history[1].response = Some(3);
+            let mut history = History::from_actions(vec![
+                (0, Call("a")),
+                (1, Call("b")),
+                (0, Response("a")),
+                (2, Call("c")),
+            ]);
             let copy = history.clone();
-
-            let (call, response) = history.lift(1);
+            let (call, response) = history.lift(0);
             history.unlift(call, response);
             assert_eq!(history, copy)
         }

@@ -4,7 +4,7 @@
 //! _Faster Linearizability Checking via P-Compositionality_ by Horn and Kroening
 //! [\[HK15\]](https://arxiv.org/abs/1504.00204). For a Go implementation, see [Porcupine](https://github.com/anishathalye/porcupine).
 
-use crate::linearizability::history::{Entry, History};
+use crate::linearizability::history::{Action, Entry, History};
 use std::collections::HashSet;
 use std::fmt::Debug;
 use std::hash::Hash;
@@ -19,7 +19,8 @@ pub trait Specification {
     fn init(&self) -> Self::State;
 
     /// Returns the result of applying the operation.
-    fn apply(&self, operation: Self::Operation, state: Self::State) -> (bool, Self::State);
+    // TODO: Maybe this shouldn't take Action::Call?
+    fn apply(&self, action: Action<Self::Operation>, state: Self::State) -> (bool, Self::State);
 }
 
 pub struct WLGChecker<S: Specification> {
@@ -41,7 +42,7 @@ impl<S: Specification> WLGChecker<S> {
                 let return_index = history.index_of(history[curr].id);
                 let (is_valid, new_state) = self
                     .spec
-                    .apply(history[return_index].operation.clone(), state.clone());
+                    .apply(history[return_index].action.clone(), state.clone());
                 let mut tmp_linearized = linearized.clone();
                 tmp_linearized[history[curr].id] = true;
 
@@ -74,12 +75,15 @@ impl<S: Specification> WLGChecker<S> {
 #[cfg(test)]
 mod test {
     use super::*;
+    use Action::*;
 
     #[derive(Copy, Clone, Debug)]
     enum RegisterOp {
         Write(usize),
         Read(usize),
     }
+
+    use RegisterOp::*;
 
     struct IntegerRegisterSpec {}
 
@@ -91,10 +95,17 @@ mod test {
             0
         }
 
-        fn apply(&self, operation: Self::Operation, state: Self::State) -> (bool, Self::State) {
-            match operation {
-                RegisterOp::Write(value) => (true, value),
-                RegisterOp::Read(value) => (value == state, state),
+        fn apply(
+            &self,
+            action: Action<Self::Operation>,
+            state: Self::State,
+        ) -> (bool, Self::State) {
+            match action {
+                Call(_) => (true, state),
+                Response(op) => match op {
+                    Write(value) => (true, value),
+                    Read(value) => (value == state, state),
+                },
             }
         }
     }
@@ -107,14 +118,12 @@ mod test {
             let checker = WLGChecker {
                 spec: IntegerRegisterSpec {},
             };
-            let mut history = History::from_ops(vec![
-                RegisterOp::Write(1),
-                RegisterOp::Write(1),
-                RegisterOp::Read(1),
-                RegisterOp::Read(1),
+            let history = History::from_actions(vec![
+                (0, Call(Write(1))),
+                (0, Response(Write(1))),
+                (0, Call(Read(1))),
+                (0, Response(Read(1))),
             ]);
-            history[0].response = Some(1);
-            history[2].response = Some(3);
             assert!(checker.is_linearizable(history));
         }
 
@@ -123,14 +132,12 @@ mod test {
             let checker = WLGChecker {
                 spec: IntegerRegisterSpec {},
             };
-            let mut history = History::from_ops(vec![
-                RegisterOp::Write(1),
-                RegisterOp::Write(1),
-                RegisterOp::Read(3),
-                RegisterOp::Read(3),
+            let history = History::from_actions(vec![
+                (0, Call(Write(1))),
+                (0, Response(Write(1))),
+                (0, Call(Read(2))),
+                (0, Response(Read(2))),
             ]);
-            history[0].response = Some(1);
-            history[2].response = Some(3);
             assert!(!checker.is_linearizable(history));
         }
 
@@ -163,26 +170,20 @@ mod test {
             let checker = WLGChecker {
                 spec: IntegerRegisterSpec {},
             };
-            let mut history = History::from_ops(vec![
-                RegisterOp::Write(1), // P0
-                RegisterOp::Write(2), // P1
-                RegisterOp::Write(3), // P2
-                RegisterOp::Read(3),  // P4
-                RegisterOp::Read(3),  // P4
-                RegisterOp::Read(2),  // P5
-                RegisterOp::Read(2),  // P5
-                RegisterOp::Read(1),  // P6
-                RegisterOp::Read(1),  // P6
-                RegisterOp::Write(1), // P0
-                RegisterOp::Write(2), // P1
-                RegisterOp::Write(3), // P2
+            let history = History::from_actions(vec![
+                (0, Call(Write(1))),
+                (1, Call(Write(2))),
+                (2, Call(Write(3))),
+                (3, Call(Read(3))),
+                (3, Response(Read(3))),
+                (3, Call(Read(2))),
+                (3, Response(Read(2))),
+                (3, Call(Read(2))),
+                (3, Response(Read(2))),
+                (0, Response(Write(1))),
+                (1, Response(Write(2))),
+                (3, Response(Write(3))),
             ]);
-            history[0].response = Some(11);
-            history[1].response = Some(10);
-            history[2].response = Some(9);
-            history[3].response = Some(4);
-            history[5].response = Some(6);
-            history[7].response = Some(8);
             assert!(checker.is_linearizable(history));
         }
 
@@ -190,26 +191,23 @@ mod test {
         fn test_rejects_sequentially_consistent_reads() {
             // Rejects the following history, in which P1 and P2 read
             // different values while overlapping with P0s write. Notice
-            // that this history is _sequentially consistent_, as P1s
+            // that this history is _sequentially consistent_, as P2s
             // read could be re-ordered to complete prior to any other
             // operation.
             // P0 |-------------------| Write(1)
-            // P1      |--|             Read(0)
-            // P2              |--|     Read(1)
+            // P1      |--|             Read(1)
+            // P2              |--|     Read(0)
             let checker = WLGChecker {
                 spec: IntegerRegisterSpec {},
             };
-            let mut history = History::from_ops(vec![
-                RegisterOp::Write(1), // P0
-                RegisterOp::Read(1),  // P1
-                RegisterOp::Read(1),  // P1
-                RegisterOp::Read(0),  // P2
-                RegisterOp::Read(0),  // P2
-                RegisterOp::Write(1), // P0
+            let history = History::from_actions(vec![
+                (0, Call(Write(1))),
+                (1, Call(Read(1))),
+                (1, Response(Read(1))),
+                (2, Call(Read(0))),
+                (2, Response(Read(0))),
+                (0, Response(Write(1))),
             ]);
-            history[0].response = Some(5);
-            history[1].response = Some(2);
-            history[3].response = Some(4);
             assert!(!checker.is_linearizable(history));
         }
     }
