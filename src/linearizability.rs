@@ -38,11 +38,12 @@ impl<S: Specification> WLGChecker<S> {
             if history.len() == 0 {
                 return true;
             }
+            println!("{:?}", history[curr]);
             if history[curr].is_call() {
-                let return_index = history.index_of(history[curr].id);
+                let response_idx = history.index_of(history[curr].response.unwrap());
                 let (is_valid, new_state) = self
                     .spec
-                    .apply(history[return_index].action.clone(), state.clone());
+                    .apply(history[response_idx].action.clone(), state.clone());
                 let mut tmp_linearized = linearized.clone();
                 tmp_linearized[history[curr].id] = true;
 
@@ -114,7 +115,7 @@ mod test {
         use super::*;
 
         #[test]
-        fn test_accepts_sequential_read_and_write() {
+        fn accepts_sequential_read_and_write() {
             let checker = WLGChecker {
                 spec: IntegerRegisterSpec {},
             };
@@ -128,7 +129,7 @@ mod test {
         }
 
         #[test]
-        fn test_rejects_invalid_reads() {
+        fn rejects_invalid_reads() {
             let checker = WLGChecker {
                 spec: IntegerRegisterSpec {},
             };
@@ -141,23 +142,8 @@ mod test {
             assert!(!checker.is_linearizable(history));
         }
 
-        // #[test]
-        // fn test_accepts_invalid_reads() {
-        //     let checker = WLGChecker {
-        //         spec: IntegerRegisterSpec {},
-        //     };
-        //     let mut history = History::from_ops(vec![
-        //         RegisterOp::Write(1),
-        //         RegisterOp::Write(1),
-        //         RegisterOp::Read(3),
-        //         RegisterOp::Read(3),
-        //     ]);
-        //     history[0].response = Some(1);
-        //     history[2].response = Some(3);
-        //     assert!(!checker.is_linearizable(history));
-
         #[test]
-        fn test_accepts_writes_in_reverse_writes() {
+        fn accepts_writes_in_reverse_order() {
             // Accepts the following history, in which processes
             // P1, P2, and P3 must linearize their writes in the
             // reverse order in which they are called.
@@ -178,17 +164,17 @@ mod test {
                 (3, Response(Read(3))),
                 (3, Call(Read(2))),
                 (3, Response(Read(2))),
-                (3, Call(Read(2))),
-                (3, Response(Read(2))),
+                (3, Call(Read(1))),
+                (3, Response(Read(1))),
                 (0, Response(Write(1))),
                 (1, Response(Write(2))),
-                (3, Response(Write(3))),
+                (2, Response(Write(3))),
             ]);
             assert!(checker.is_linearizable(history));
         }
 
         #[test]
-        fn test_rejects_sequentially_consistent_reads() {
+        fn rejects_sequentially_consistent_reads() {
             // Rejects the following history, in which P1 and P2 read
             // different values while overlapping with P0s write. Notice
             // that this history is _sequentially consistent_, as P2s
