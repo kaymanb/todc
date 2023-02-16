@@ -13,14 +13,15 @@ pub mod history;
 
 pub trait Specification {
     type State: Clone + Eq + Hash + Debug;
-    type Operation: Clone + Debug;
+    type CallOp: Clone + Debug;
+    type ResponseOp: Clone + Debug;
 
     /// Returns an initial state for the specification.
     fn init(&self) -> Self::State;
 
     /// Returns the result of applying the operation.
     // TODO: Maybe this shouldn't take Action::Call?
-    fn apply(&self, action: Action<Self::Operation>, state: Self::State) -> (bool, Self::State);
+    fn apply(&self, call: Self::CallOp, response: Self::ResponseOp, state: Self::State) -> (bool, Self::State);
 }
 
 pub struct WLGChecker<S: Specification> {
@@ -28,7 +29,7 @@ pub struct WLGChecker<S: Specification> {
 }
 
 impl<S: Specification> WLGChecker<S> {
-    pub fn is_linearizable(&self, mut history: History<S::Operation>) -> bool {
+    pub fn is_linearizable(&self, mut history: History<S::CallOp, S::ResponseOp>) -> bool {
         let mut state = self.spec.init();
         let mut linearized = vec![false; history.len()];
         let mut calls: Vec<((Entry<S::Operation>, Entry<S::Operation>), S::State)> = Vec::new();
@@ -43,7 +44,7 @@ impl<S: Specification> WLGChecker<S> {
                 let response_idx = history.index_of(history[curr].response.unwrap());
                 let (is_valid, new_state) = self
                     .spec
-                    .apply(history[response_idx].action.clone(), state.clone());
+                    .apply(history[curr].action.clone(), history[response_idx].action.clone(), state.clone());
                 let mut tmp_linearized = linearized.clone();
                 tmp_linearized[history[curr].id] = true;
 
@@ -79,18 +80,25 @@ mod test {
     use Action::*;
 
     #[derive(Copy, Clone, Debug)]
-    enum RegisterOp {
-        Write(usize),
-        Read(usize),
+    enum RegisterCall {
+        WriteCall(usize),
+        ReadCall,
     }
 
-    use RegisterOp::*;
+    enum RegisterResponse {
+        ReadResp(usize),
+        WriteResp(usize)
+    }
+    
+    use RegisterCall::*;
+    use RegisterResponse::*;
 
     struct IntegerRegisterSpec {}
 
     impl Specification for IntegerRegisterSpec {
         type State = usize;
-        type Operation = RegisterOp;
+        type CallOp = RegisterCall;
+        type ResponseOp = RegisterResponse;
 
         fn init(&self) -> Self::State {
             0
@@ -98,15 +106,26 @@ mod test {
 
         fn apply(
             &self,
-            action: Action<Self::Operation>,
+            call: Self::CallOp,
+            response: Self::ResponseOp,
             state: Self::State,
         ) -> (bool, Self::State) {
-            match action {
-                Call(_) => (true, state),
-                Response(op) => match op {
-                    Write(value) => (true, value),
-                    Read(value) => (value == state, state),
+            match call {
+                WriteCall(c_value) => {
+                    match response {
+                        WriteResp(r_value) => {
+                            let valid = c_value == r_value;
+                            (valid, if valid { c_value } else { state })
+                        },
+                        _ => (false, state)
+                    }
                 },
+                ReadCall => {
+                    match response {
+                        ReadResp(value) => (value == state, state),
+                        _ => (false, state)
+                    }
+                }
             }
         }
     }

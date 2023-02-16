@@ -5,39 +5,39 @@ use std::ops::{Index, IndexMut};
 type EntryID = usize;
 
 #[derive(PartialEq, Eq, Clone, Debug)]
-pub enum Action<T> {
-    Call(T),
-    Response(T),
+pub enum Action<C, R> {
+    Call(C, R),
+    Response(C, R),
 }
 
 use Action::*;
 
 #[derive(PartialEq, Eq, Clone, Debug)]
-pub struct Entry<T> {
+pub struct Entry<C, R> {
     pub id: EntryID,
-    pub action: Action<T>,
+    pub action: Action<C, R>,
     pub response: Option<EntryID>,
 }
 
-impl<T> Entry<T> {
+impl<C, R> Entry<C, R> {
     pub fn is_call(&self) -> bool {
         self.response.is_some()
     }
 }
 
 #[derive(PartialEq, Eq, Clone, Debug)]
-pub struct History<T> {
-    pub entries: Vec<Entry<T>>,
+pub struct History<C, R> {
+    pub entries: Vec<Entry<C, R>>,
     // When an entry is removed from this history, its index is recorded here.
     removed_from: Vec<Option<usize>>,
 }
 
-impl<T> History<T> {
+impl<C, R> History<C, R> {
     /// # Panics
     ///
     /// Panics if `actions` is empty.
-    pub fn from_actions(actions: Vec<(usize, Action<T>)>) -> Self {
-        let (processes, actions): (Vec<usize>, Vec<Action<T>>) = actions.into_iter().unzip();
+    pub fn from_actions(actions: Vec<(usize, Action<C, R>)>) -> Self {
+        let (processes, actions): (Vec<usize>, Vec<Action<C, R>>) = actions.into_iter().unzip();
         let mut history = Self {
             entries: actions
                 .into_iter()
@@ -73,7 +73,7 @@ impl<T> History<T> {
     /// # Panics
     ///
     /// Panics if input entry was not previously removed from the history.
-    fn insert(&mut self, entry: Entry<T>) -> usize {
+    fn insert(&mut self, entry: Entry<C, R>) -> usize {
         match self.removed_from[entry.id].take() {
             Some(index) => {
                 self.entries.insert(index, entry);
@@ -83,7 +83,7 @@ impl<T> History<T> {
         }
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = &Entry<T>> {
+    pub fn iter(&self) -> impl Iterator<Item = &Entry<C, R>> {
         self.entries.iter()
     }
 
@@ -91,7 +91,7 @@ impl<T> History<T> {
         self.entries.len()
     }
 
-    pub fn lift(&mut self, i: usize) -> (Entry<T>, Entry<T>) {
+    pub fn lift(&mut self, i: usize) -> (Entry<C, R>, Entry<C, R>) {
         let call_entry = self.remove(i);
         // Use types to prevent these unwraps.
         let return_index = self.index_of(call_entry.response.unwrap());
@@ -99,28 +99,28 @@ impl<T> History<T> {
         (call_entry, return_entry)
     }
 
-    fn remove(&mut self, i: usize) -> Entry<T> {
+    fn remove(&mut self, i: usize) -> Entry<C, R> {
         let entry = self.entries.remove(i);
         self.removed_from[entry.id] = Some(i);
         entry
     }
 
-    pub fn unlift(&mut self, call: Entry<T>, response: Entry<T>) -> (usize, usize) {
+    pub fn unlift(&mut self, call: Entry<C, R>, response: Entry<C, R>) -> (usize, usize) {
         let response_index = self.insert(response);
         let call_index = self.insert(call);
         (call_index, response_index)
     }
 }
 
-impl<T> Index<usize> for History<T> {
-    type Output = Entry<T>;
+impl<C, R> Index<usize> for History<C, R> {
+    type Output = Entry<C, R>;
 
     fn index(&self, i: usize) -> &Self::Output {
         self.entries.index(i)
     }
 }
 
-impl<T> IndexMut<usize> for History<T> {
+impl<C, R> IndexMut<usize> for History<C, R> {
     fn index_mut(&mut self, i: usize) -> &mut Self::Output {
         self.entries.index_mut(i)
     }
