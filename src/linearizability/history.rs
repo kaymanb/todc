@@ -6,30 +6,62 @@ type EntryID = usize;
 
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub enum Action<C, R> {
-    Call(C, R),
-    Response(C, R),
+    Call(C),
+    Response(R),
 }
 
-use Action::*;
+#[derive(PartialEq, Eq, Clone, Debug)]
+pub struct CallEntry<C> {
+    pub id: EntryID,
+    pub action: C,
+    pub response: EntryID,
+}
 
 #[derive(PartialEq, Eq, Clone, Debug)]
-pub struct Entry<C, R> {
+pub struct ResponseEntry<R> {
     pub id: EntryID,
-    pub action: Action<C, R>,
-    pub response: Option<EntryID>,
+    pub action: R
+}
+
+#[derive(PartialEq, Eq, Clone, Debug)]
+pub enum Entry<C, R> {
+    Call(CallEntry<C>),
+    Response(ResponseEntry<R>)
 }
 
 impl<C, R> Entry<C, R> {
-    pub fn is_call(&self) -> bool {
-        self.response.is_some()
+    
+    fn from_action(id: EntryID, action: Action<C, R>) -> Self {
+        match action {
+            Action::Call(action) => Self::Call(CallEntry {
+                id,
+                action,
+                // HACK: This value shouldn't stay as id
+                // TODO: Fix this next
+                response: id
+            }),
+            Action::Response(action) => Self::Response(ResponseEntry {
+                id,
+                action,
+            })
+        }
     }
+
+    pub fn id(&self) -> EntryID {
+        match self {
+            Entry::Call(entry) => entry.id,
+            Entry::Response(entry) => entry.id
+        }
+    }
+
 }
+
 
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub struct History<C, R> {
     pub entries: Vec<Entry<C, R>>,
     // When an entry is removed from this history, its index is recorded here.
-    removed_from: Vec<Option<usize>>,
+    removed_from: Vec<Option<EntryID>>,
 }
 
 impl<C, R> History<C, R> {
@@ -42,44 +74,46 @@ impl<C, R> History<C, R> {
             entries: actions
                 .into_iter()
                 .enumerate()
-                .map(|(i, action)| Entry {
-                    id: i,
-                    action,
-                    response: None,
-                })
+                .map(|(i, action)| Entry::from_action(i, action))
                 .collect(),
             removed_from: repeat_with(|| None).take(processes.len()).collect(),
         };
 
-        // Link associated call and response actions within the history
+        // Link associated call and response entries within the history
         let num_processes = processes.iter().max().unwrap();
         let mut calls: Vec<Option<usize>> = repeat_with(|| None).take(*num_processes + 1).collect();
-        // TODO: Validate that the history is valid and complete.
+        // TODO: Validate that the history is complete.
         for (idx, process) in processes.iter().enumerate() {
-            match &history[idx].action {
-                Call(_) => {
+            match &history[idx] {
+                Entry::Call(_) => {
                     calls[*process] = Some(idx);
                 }
-                Response(_) => history[calls[*process].unwrap()].response = Some(history[idx].id),
+                Entry::Response(response) => {
+                    let entry = &history[calls[*process].unwrap()];
+                    match entry {
+                        Entry::Call(call) => call.response = response.id,
+                        Entry::Response(_) => panic!("")
+                    }
+                }
             }
         }
         return history;
     }
 
-    pub fn index_of(&self, id: EntryID) -> usize {
-        self.iter().position(|e| e.id == id).unwrap()
+    pub fn index_of_id(&self, id: EntryID) -> usize {
+        self.iter().position(|e| e.id() == id).unwrap()
     }
 
     /// # Panics
     ///
     /// Panics if input entry was not previously removed from the history.
     fn insert(&mut self, entry: Entry<C, R>) -> usize {
-        match self.removed_from[entry.id].take() {
+        match self.removed_from[entry.id()].take() {
             Some(index) => {
                 self.entries.insert(index, entry);
                 index
             }
-            None => panic!("Index that entry {} was removed from is unknown", entry.id),
+            None => panic!("Index that entry {} was removed from is unknown", entry.id()),
         }
     }
 
@@ -92,16 +126,18 @@ impl<C, R> History<C, R> {
     }
 
     pub fn lift(&mut self, i: usize) -> (Entry<C, R>, Entry<C, R>) {
-        let call_entry = self.remove(i);
-        // Use types to prevent these unwraps.
-        let return_index = self.index_of(call_entry.response.unwrap());
-        let return_entry = self.remove(return_index);
-        (call_entry, return_entry)
+        match self.remove(i) {
+            Entry::Response(_) => panic!("Cannot lift a response entry out of the history"),
+            Entry::Call(call) => {
+                let response = self.remove(self.index_of_id(call.response));
+                (Entry::Call(call), response)
+            }
+        }
     }
 
     fn remove(&mut self, i: usize) -> Entry<C, R> {
         let entry = self.entries.remove(i);
-        self.removed_from[entry.id] = Some(i);
+        self.removed_from[entry.id()] = Some(i);
         entry
     }
 
@@ -129,6 +165,7 @@ impl<C, R> IndexMut<usize> for History<C, R> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use Action::{Call, Response};
     use std::iter::zip;
 
     mod from_actions {
@@ -136,10 +173,10 @@ mod tests {
 
         #[test]
         fn creates_sequential_ids() {
-            let history =
+            let history: History<&str, &str> =
                 History::from_actions(vec![(0, Call("a")), (1, Call("b")), (2, Call("c"))]);
             for (i, entry) in history.iter().enumerate() {
-                assert_eq!(entry.id, i);
+                assert_eq!(entry.id(), i);
             }
         }
 
@@ -155,16 +192,12 @@ mod tests {
                 (1, Response("b")),
                 (0, Response("a")),
             ]);
-            for entry in history.clone().iter() {
-                match entry.action {
-                    Call(call_letter) => {
-                        let idx = history.index_of(entry.response.unwrap());
-                        match history[idx].action {
-                            Call(_) => panic!("Call action cannot be a response"),
-                            Response(response_letter) => assert_eq!(call_letter, response_letter)
-                        }
-                    },
-                    Response(_) => assert!(entry.response.is_none()),
+            for entry in history.iter() {
+                if let Entry::Call(call) = entry {
+                    match history[history.index_of_id(call.response)] {
+                        Entry::Response(response) => assert_eq!(call.action, response.action),
+                        Entry::Call(_) => panic!("Call entry was linked to another call entry")
+                    }
                 }
             }
         }
@@ -179,16 +212,12 @@ mod tests {
                 (0, Call("c")),
                 (0, Response("c")),
             ]);
-            for entry in history.clone().iter() {
-                match entry.action {
-                    Call(call_letter) => {
-                        let idx = history.index_of(entry.response.unwrap());
-                        match history[idx].action {
-                            Call(_) => panic!("Call action cannot be a response"),
-                            Response(response_letter) => assert_eq!(call_letter, response_letter)
-                        }
-                    },
-                    Response(_) => assert!(entry.response.is_none()),
+            for entry in history.iter() {
+                if let Entry::Call(call) = entry {
+                    match history[history.index_of_id(call.response)] {
+                        Entry::Response(response) => assert_eq!(call.action, response.action),
+                        Entry::Call(_) => panic!("Call entry was linked to another call entry")
+                    }
                 }
             }
         }
@@ -196,10 +225,10 @@ mod tests {
 
     mod insert {
         use super::*;
-
+        
         #[test]
         fn is_inverse_of_remove() {
-            let history =
+            let history: History<&str, &str> =
                 History::from_actions(vec![(0, Call("a")), (1, Call("b")), (2, Call("c"))]);
             let mut copy = history.clone();
             let entry = copy.remove(1);
@@ -223,9 +252,9 @@ mod tests {
             ]);
             history.lift(0);
             for (entry, letter) in zip(history.iter(), ["b", "c"]) {
-                match entry.action {
-                    Call(value) => assert_eq!(value, letter),
-                    Response(_) => panic!("Unexpected action"),
+                match entry {
+                    Entry::Call(call) => assert_eq!(call.action, letter),
+                    Entry::Response(_) => panic!("Unexpected response entry")
                 }
             }
         }
@@ -236,13 +265,17 @@ mod tests {
 
         #[test]
         fn removes_only_requested_entry() {
-            let mut history =
+            let mut history: History<&str, &str> =
                 History::from_actions(vec![(0, Call("a")), (1, Call("b")), (2, Call("c"))]);
-            assert_eq!(Call("b"), history.remove(1).action);
+            
+            match history.remove(1) {
+                Entry::Call(call) => assert_eq!(call.action, "b"),
+                Entry::Response(_) => panic!("Removed incorrect entry")
+            }
             for (entry, letter) in zip(history.iter(), ["a", "c", "d"]) {
-                match entry.action {
-                    Call(value) => assert_eq!(value, letter),
-                    Response(_) => panic!("Unexpected action"),
+                match entry {
+                    Entry::Call(entry) => assert_eq!(entry.action, letter),
+                    Entry::Response(entry) => panic!("Unexpected response entry")
                 }
             }
         }

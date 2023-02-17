@@ -19,9 +19,8 @@ pub trait Specification {
     /// Returns an initial state for the specification.
     fn init(&self) -> Self::State;
 
-    /// Returns the result of applying the operation.
-    // TODO: Maybe this shouldn't take Action::Call?
-    fn apply(&self, call: Self::CallOp, response: Self::ResponseOp, state: Self::State) -> (bool, Self::State);
+    /// Returns the state that results from a valid call and response pair. .
+    fn apply(&self, call: &Self::CallOp, response: &Self::ResponseOp, state: &Self::State) -> (bool, Self::State);
 }
 
 pub struct WLGChecker<S: Specification> {
@@ -32,41 +31,43 @@ impl<S: Specification> WLGChecker<S> {
     pub fn is_linearizable(&self, mut history: History<S::CallOp, S::ResponseOp>) -> bool {
         let mut state = self.spec.init();
         let mut linearized = vec![false; history.len()];
-        let mut calls: Vec<((Entry<S::Operation>, Entry<S::Operation>), S::State)> = Vec::new();
+        let mut calls: Vec<((Entry<S::CallOp, S::ResponseOp>, Entry<S::CallOp, S::ResponseOp>), S::State)> = Vec::new();
         let mut cache: HashSet<(Vec<bool>, S::State)> = HashSet::new();
         let mut curr = 0;
         loop {
             if history.len() == 0 {
                 return true;
             }
-            println!("{:?}", history[curr]);
-            if history[curr].is_call() {
-                let response_idx = history.index_of(history[curr].response.unwrap());
-                let (is_valid, new_state) = self
-                    .spec
-                    .apply(history[curr].action.clone(), history[response_idx].action.clone(), state.clone());
-                let mut tmp_linearized = linearized.clone();
-                tmp_linearized[history[curr].id] = true;
+            match &history[curr] {
+                Entry::Call(call) => {
+                    match &history[history.index_of_id(call.response)] {
+                        Entry::Call(_) => panic!("Response cannot be a call entry"),
+                        Entry::Response(response) => {
+                            let (is_valid, new_state) = self.spec.apply(&call.action, &response.action, &state);
+                            let mut tmp_linearized = linearized.clone();
+                            tmp_linearized[call.id] = true;
 
-                if !is_valid || !cache.insert((tmp_linearized, new_state.clone())) {
-                    curr += 1;
-                    continue;
-                }
-                linearized[history[curr].id] = true;
-                let call = history.lift(curr);
-                calls.push((call, state));
-                state = new_state;
-                curr = 0;
-            } else {
-                match calls.pop() {
-                    None => {
-                        return false;
+                            if !is_valid || !cache.insert((tmp_linearized, new_state.clone())) {
+                                curr += 1;
+                                continue;
+                            }
+                            linearized[call.id] = true;
+                            let call = history.lift(curr);
+                            calls.push((call, state));
+                            state = new_state;
+                            curr = 0;
+                        }
                     }
-                    Some(((call, response), old_state)) => {
-                        state = old_state;
-                        linearized[call.id] = false;
-                        let (call_index, _) = history.unlift(call, response);
-                        curr = call_index + 1;
+                },
+                Entry::Response(_) => {
+                    match calls.pop() {
+                        None => return false,
+                        Some(((call, response), old_state)) => {
+                            state = old_state;
+                            linearized[call.id()] = false;
+                            let (call_index, _) = history.unlift(call, response);
+                            curr = call_index + 1;
+                        }
                     }
                 }
             }
