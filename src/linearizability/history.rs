@@ -183,6 +183,12 @@ mod tests {
                 (0, Response("a")),
                 (1, Response("b")),
                 (2, Response("c")),
+                (0, Call("e")),
+                (1, Call("f")),
+                (2, Call("g")),
+                (0, Response("e")),
+                (1, Response("f")),
+                (2, Response("g")),
             ]);
             for entry in history.iter() {
                 println!("{:?}", entry);

@@ -50,23 +50,36 @@ impl<S: Specification> WLGChecker<S> {
                 Entry::Call(call) => match &history[history.index_of_id(call.response)] {
                     Entry::Call(_) => panic!("Response cannot be a call entry"),
                     Entry::Response(response) => {
+                        println!("{:?}", history[curr]);
+                        println!("    L___ STATE: {:?}", state);
+                        println!("    L___ RESPONSE: {:?}", response);
                         // TODO: Better memory management so these clones aren't necessary.
                         let (is_valid, new_state) = self.spec.apply(
                             call.action.clone(),
                             response.action.clone(),
                             state.clone(),
                         );
-                        let mut tmp_linearized = linearized.clone();
-                        tmp_linearized[call.id] = true;
-                        if !is_valid || !cache.insert((tmp_linearized, new_state.clone())) {
-                            curr += 1;
-                            continue;
+                        let mut changed = false;
+                        if is_valid {
+                            let mut tmp_linearized = linearized.clone();
+                            tmp_linearized[call.id] = true;
+                            changed = cache.insert((tmp_linearized, new_state.clone()));
+                            if !changed {
+                                println!("    L___ VALID, BUT CACHE HIT");
+                            }
                         }
-                        linearized[call.id] = true;
-                        let call = history.lift(curr);
-                        calls.push((call, state));
-                        state = new_state;
-                        curr = 0;
+                        if changed {
+                            linearized[call.id] = true;
+                            let call = history.lift(curr);
+                            calls.push((call, state));
+                            state = new_state;
+                            curr = 0;
+                        } else {
+                            println!("    L___ ERROR: Could not linearize");
+                            println!("Curr {:?}", curr);
+                            println!("Next {:?}", history[curr + 1]);
+                            curr += 1;
+                        }
                     }
                 },
                 Entry::Response(_) => match calls.pop() {

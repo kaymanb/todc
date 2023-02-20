@@ -2,7 +2,7 @@ use std::fs::File;
 use std::io::{self, BufRead};
 use std::path::Path;
 
-use todc::linearizability::history::{Entry, History};
+use todc::linearizability::history::{Action, History};
 use todc::linearizability::{Specification, WLGChecker};
 
 /// See https://doc.rust-lang.org/rust-by-example/std_misc/file/read_lines.html
@@ -14,10 +14,10 @@ where
     Ok(io::BufReader::new(file).lines())
 }
 
-fn history_from_log(filename: &str, num_processes: usize) -> History<EtcdOperation> {
-    let mut count = 0;
-    let mut entries: Vec<Entry<EtcdOperation>> = Vec::new();
-    let mut calls: Vec<Option<usize>> = vec![None; num_processes + 1];
+type ProcessID = usize;
+
+fn history_from_log(filename: &str) -> History<EtcdCall, EtcdResponse> {
+    let mut actions: Vec<(ProcessID, Action<EtcdCall, EtcdResponse>)> = Vec::new();
     for line in read_lines(filename).unwrap() {
         let line = line.unwrap();
         let words: Vec<&str> = line.split_whitespace().collect();
@@ -33,31 +33,13 @@ fn history_from_log(filename: &str, num_processes: usize) -> History<EtcdOperati
 
         let process: usize = words[3].parse().unwrap();
         let status = EtcdStatus::from_log(words[4]);
-        let entry = Entry {
-            id: count,
-            operation: EtcdOperation::from_log(&words[4..]),
-            response: None,
+        let action = match status {
+            EtcdStatus::Invoke => Action::Call(EtcdCall::from_log(&words[4..])),
+            _ => Action::Response(EtcdResponse::from_log(&words[4..]))
         };
-
-        if status == EtcdStatus::Invoke {
-            match calls[process] {
-                None => calls[process] = Some(count),
-                Some(_) => panic!("Process invoked multiple operations without response"),
-            }
-        } else {
-            match calls[process] {
-                Some(index) => {
-                    entries[index].response = Some(count);
-                    calls[process] = None;
-                }
-                None => panic!("Process returned from non-existent call"),
-            }
-            calls[process] = None;
-        }
-        entries.push(entry);
-        count += 1;
+        actions.push((process, action))
     }
-    History { entries }
+    History::from_actions(actions)
 }
 
 #[derive(PartialEq, Eq, Debug, Copy, Clone)]
@@ -65,8 +47,9 @@ enum EtcdStatus {
     Invoke,
     Okay,
     Fail,
-    Info,
+    Timeout,
 }
+
 
 impl EtcdStatus {
     fn from_log(string: &str) -> Self {
@@ -77,7 +60,8 @@ impl EtcdStatus {
         } else if string == ":fail" {
             Self::Fail
         } else if string == ":info" {
-            Self::Info
+            // All :info statuses indicate that the operation timed out.
+            Self::Timeout
         } else {
             panic!("Unexpected status for etcd operation")
         }
@@ -85,15 +69,52 @@ impl EtcdStatus {
 }
 
 #[derive(Debug, Copy, Clone)]
-enum EtcdOperation {
-    Read(EtcdStatus, Option<u32>),
-    Write(EtcdStatus, Option<u32>),
-    CompareAndSwap(EtcdStatus, Option<(u32, u32)>),
+enum EtcdCall {
+    ReadCall(EtcdStatus),
+    WriteCall(EtcdStatus, u32),
+    CASCall(EtcdStatus, (u32, u32))
 }
 
-impl EtcdOperation {
+impl EtcdCall {
     fn from_log(words: &[&str]) -> Self {
         let status = EtcdStatus::from_log(words[0]);
+        // TODO: There must be a way to enforce this with types...
+        if status != EtcdStatus::Invoke {
+            panic!("All call statuses must be :invoke")
+        }
+        let operation = words[1];
+        if operation == ":read" {
+            Self::ReadCall(status)
+        } else if operation == ":write" {
+            Self::WriteCall(status, words[2].parse().unwrap())
+        } else if operation == ":cas" {
+            Self::CASCall(status,
+                (
+                    words[2][1..].parse().unwrap(),
+                    words[3][..1].parse().unwrap(),
+                )
+            )
+        } else {
+            panic!("Unexpected operation: '{}'", operation)
+        }
+    }
+}
+
+use EtcdCall::*;
+
+#[derive(Debug, Copy, Clone)]
+enum EtcdResponse {
+    ReadResp(EtcdStatus, Option<u32>),
+    WriteResp(EtcdStatus, Option<u32>),
+    CASResp(EtcdStatus, Option<(u32, u32)>)
+}
+
+impl EtcdResponse {
+    fn from_log(words: &[&str]) -> Self {
+        let status = EtcdStatus::from_log(words[0]);
+        if status == EtcdStatus::Invoke {
+            panic!("Etcd response cannot have status :invoke")
+        }
         let operation = words[1];
         if operation == ":read" {
             let value = if words[2] == "nil" || words[2] == ":timed-out" {
@@ -101,14 +122,14 @@ impl EtcdOperation {
             } else {
                 Some(words[2].parse::<u32>().unwrap())
             };
-            Self::Read(status, value)
+            Self::ReadResp(status, value)
         } else if operation == ":write" {
             let value = if words[2] == ":timed-out" {
                 None
             } else {
                 Some(words[2].parse::<u32>().unwrap())
             };
-            Self::Write(status, value)
+            Self::WriteResp(status, value)
         } else if operation == ":cas" {
             let value: Option<(u32, u32)> = if words[2] == ":timed-out" {
                 None
@@ -118,52 +139,111 @@ impl EtcdOperation {
                     words[3][..1].parse().unwrap(),
                 ))
             };
-            Self::CompareAndSwap(status, value)
+            Self::CASResp(status, value)
         } else {
-            panic!("Unexpected operation for etcd operation")
+            panic!("Unexpected operation: '{}'", operation)
         }
     }
 }
+
+use EtcdResponse::*;
 
 struct EtcdSpecification {}
 
 impl Specification for EtcdSpecification {
     type State = Option<u32>;
-    type Operation = EtcdOperation;
+    type CallOp = EtcdCall;
+    type ResponseOp = EtcdResponse;
 
     fn init(&self) -> Self::State {
         None
     }
 
-    fn apply(&self, operation: Self::Operation, state: Self::State) -> (bool, Self::State) {
-        match operation {
-            EtcdOperation::Read(status, value) => match status {
-                EtcdStatus::Okay => (value == state, state),
-                _ => (true, state),
+    fn apply(
+        &self,
+        call: Self::CallOp,
+        response: Self::ResponseOp,
+        state: Self::State,
+    ) -> (bool, Self::State) {
+        match call {
+            ReadCall(_status) => {
+                if let ReadResp(status, value) = response {
+                    match status {
+                        EtcdStatus::Okay => (value == state, state),
+                        // Reads marked :fail have actually timed out, but the result is the same.
+                        EtcdStatus::Fail => (true, state),
+                        _ => (false, state)
+                    }
+                // TODO: Remove the need for this else block
+                } else {
+                    panic!("Unexpected response")
+                }
             },
-            EtcdOperation::Write(status, value) => match status {
-                EtcdStatus::Okay => match value {
-                    Some(value) => (true, Some(value)),
-                    None => panic!("Valid writes must apply a value"),
-                },
-                _ => (true, state),
+            WriteCall(_status, _value) => {
+                if let WriteResp(status, value) = response {
+                    match status {
+                        EtcdStatus::Okay => match value {
+                            Some(value) => (true, Some(value)),
+                            None => panic!("Valid writes must apply a value"),
+                        },
+                        EtcdStatus::Timeout => (true, state),
+                        _ => (false, state)
+                    }
+                } else {
+                    panic!("Unexpected response")
+                }
             },
-            EtcdOperation::CompareAndSwap(status, value) => match status {
-                EtcdStatus::Okay => match value {
-                    Some((compare, swap)) => match state {
-                        Some(inner) => {
-                            if compare == inner {
-                                (true, Some(swap))
-                            } else {
-                                (false, state)
+            CASCall(_status, call_value) => {
+                if let CASResp(status, value) = response {
+                    match status {
+                        EtcdStatus::Okay => match value {
+                            Some((compare, swap)) => match state {
+                                Some(inner) => {
+                                    if compare == inner {
+                                        (true, Some(swap))
+                                    } else {
+                                        (false, state) // Because we expected to succeed
+                                    }
+                                }
+                                None => (false, state),
+                            },
+                            None => panic!("Valid CAS must include values"),
+                        },
+                        // TODO: I've been handling timeouts wrong: they can be applied at _any_
+                        // point in the future, not just between responses. 
+                        EtcdStatus::Timeout => {
+                            let (compare, swap) = call_value;
+                            match state {
+                                Some(inner) => {
+                                    if compare == inner {
+                                        (true, Some(swap))
+                                    } else {
+                                        (true, state) // Because response set no expectation
+                                    }
+                                },
+                                // TODO: Should this be true?
+                                None => (true, state),
                             }
-                        }
-                        None => (false, state),
-                    },
-                    None => panic!("Valid CAS must include values"),
-                },
-                _ => (true, state),
-            },
+                        },
+                        EtcdStatus::Fail => match value {
+                            Some((compare, _swap)) => match state {
+                                Some(inner) => {
+                                    if compare == inner {
+                                        (false, state)
+                                    } else {
+                                        (true, state) // Because we expected to fail
+                                    }
+                                },
+                                _ => (true, state)
+                            },
+                            None => panic!("Valid CAS must include values"),
+                        },
+                        _ => panic!("Unexpected Invoke")
+                    }
+                } else {
+                    panic!("Unexpected response")
+                }
+            }
         }
     }
 }
@@ -171,8 +251,6 @@ impl Specification for EtcdSpecification {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    const MAX_NUM_PROCESSES: usize = 40;
 
     #[macro_export]
     macro_rules! etcd_tests {
@@ -185,8 +263,7 @@ mod tests {
                         spec: EtcdSpecification {},
                     };
                     let result = checker.is_linearizable(history_from_log(
-                        format!("tests/linearizability/etcd/etcd_{}.log", log_number).as_str(),
-                        MAX_NUM_PROCESSES
+                        format!("tests/linearizability/etcd/etcd_{}.log", log_number).as_str()
                     ));
                     assert_eq!(result, expected_result);
                 }
@@ -290,7 +367,8 @@ mod tests {
         test_092: ("092", true),
         test_093: ("093", false),
         test_094: ("094", false),
-        test_095: ("095", false),
+        // Etcd fails to boot during test case 95
+        // test_095: ("095", None),
         test_096: ("096", false),
         test_097: ("097", false),
         test_098: ("098", true),
@@ -298,5 +376,7 @@ mod tests {
         test_100: ("100", true),
         test_101: ("101", true),
         test_102: ("102", true),
+        // This is a "mini" test containing a snippit of 002
+        // test_109: ("109", true),
     }
 }
