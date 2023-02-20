@@ -4,7 +4,7 @@
 //! _Faster Linearizability Checking via P-Compositionality_ by Horn and Kroening
 //! [\[HK15\]](https://arxiv.org/abs/1504.00204). For a Go implementation, see [Porcupine](https://github.com/anishathalye/porcupine).
 
-use crate::linearizability::history::{Action, Entry, History};
+use crate::linearizability::history::{Entry, History};
 use std::collections::HashSet;
 use std::fmt::Debug;
 use std::hash::Hash;
@@ -20,56 +20,64 @@ pub trait Specification {
     fn init(&self) -> Self::State;
 
     /// Returns the state that results from a valid call and response pair. .
-    fn apply(&self, call: &Self::CallOp, response: &Self::ResponseOp, state: &Self::State) -> (bool, Self::State);
+    fn apply(
+        &self,
+        call: Self::CallOp,
+        response: Self::ResponseOp,
+        state: Self::State,
+    ) -> (bool, Self::State);
 }
 
 pub struct WLGChecker<S: Specification> {
     pub spec: S,
 }
 
+type SpecEntry<S> = Entry<<S as Specification>::CallOp, <S as Specification>::ResponseOp>;
+
 impl<S: Specification> WLGChecker<S> {
     pub fn is_linearizable(&self, mut history: History<S::CallOp, S::ResponseOp>) -> bool {
         let mut state = self.spec.init();
         let mut linearized = vec![false; history.len()];
-        let mut calls: Vec<((Entry<S::CallOp, S::ResponseOp>, Entry<S::CallOp, S::ResponseOp>), S::State)> = Vec::new();
+        // TODO: Figure out how to type alias Entry<S::CallOp, S::ResponseOp>
+        let mut calls: Vec<((SpecEntry<S>, SpecEntry<S>), S::State)> = Vec::new();
         let mut cache: HashSet<(Vec<bool>, S::State)> = HashSet::new();
         let mut curr = 0;
         loop {
-            if history.len() == 0 {
+            if history.is_empty() {
                 return true;
             }
             match &history[curr] {
-                Entry::Call(call) => {
-                    match &history[history.index_of_id(call.response)] {
-                        Entry::Call(_) => panic!("Response cannot be a call entry"),
-                        Entry::Response(response) => {
-                            let (is_valid, new_state) = self.spec.apply(&call.action, &response.action, &state);
-                            let mut tmp_linearized = linearized.clone();
-                            tmp_linearized[call.id] = true;
-
-                            if !is_valid || !cache.insert((tmp_linearized, new_state.clone())) {
-                                curr += 1;
-                                continue;
-                            }
-                            linearized[call.id] = true;
-                            let call = history.lift(curr);
-                            calls.push((call, state));
-                            state = new_state;
-                            curr = 0;
+                Entry::Call(call) => match &history[history.index_of_id(call.response)] {
+                    Entry::Call(_) => panic!("Response cannot be a call entry"),
+                    Entry::Response(response) => {
+                        // TODO: Better memory management so these clones aren't necessary.
+                        let (is_valid, new_state) = self.spec.apply(
+                            call.action.clone(),
+                            response.action.clone(),
+                            state.clone(),
+                        );
+                        let mut tmp_linearized = linearized.clone();
+                        tmp_linearized[call.id] = true;
+                        if !is_valid || !cache.insert((tmp_linearized, new_state.clone())) {
+                            curr += 1;
+                            continue;
                         }
+                        linearized[call.id] = true;
+                        let call = history.lift(curr);
+                        calls.push((call, state));
+                        state = new_state;
+                        curr = 0;
                     }
                 },
-                Entry::Response(_) => {
-                    match calls.pop() {
-                        None => return false,
-                        Some(((call, response), old_state)) => {
-                            state = old_state;
-                            linearized[call.id()] = false;
-                            let (call_index, _) = history.unlift(call, response);
-                            curr = call_index + 1;
-                        }
+                Entry::Response(_) => match calls.pop() {
+                    None => return false,
+                    Some(((call, response), old_state)) => {
+                        state = old_state;
+                        linearized[call.id()] = false;
+                        let (call_index, _) = history.unlift(call, response);
+                        curr = call_index + 1;
                     }
-                }
+                },
             }
         }
     }
@@ -78,7 +86,7 @@ impl<S: Specification> WLGChecker<S> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use Action::*;
+    use history::Action::*;
 
     #[derive(Copy, Clone, Debug)]
     enum RegisterCall {
@@ -86,11 +94,12 @@ mod test {
         ReadCall,
     }
 
+    #[derive(Copy, Clone, Debug)]
     enum RegisterResponse {
         ReadResp(usize),
-        WriteResp(usize)
+        WriteResp(usize),
     }
-    
+
     use RegisterCall::*;
     use RegisterResponse::*;
 
@@ -112,21 +121,17 @@ mod test {
             state: Self::State,
         ) -> (bool, Self::State) {
             match call {
-                WriteCall(c_value) => {
-                    match response {
-                        WriteResp(r_value) => {
-                            let valid = c_value == r_value;
-                            (valid, if valid { c_value } else { state })
-                        },
-                        _ => (false, state)
+                WriteCall(c_value) => match response {
+                    WriteResp(r_value) => {
+                        let valid = c_value == r_value;
+                        (valid, if valid { c_value } else { state })
                     }
+                    _ => (false, state),
                 },
-                ReadCall => {
-                    match response {
-                        ReadResp(value) => (value == state, state),
-                        _ => (false, state)
-                    }
-                }
+                ReadCall => match response {
+                    ReadResp(value) => (value == state, state),
+                    _ => (false, state),
+                },
             }
         }
     }
@@ -140,10 +145,10 @@ mod test {
                 spec: IntegerRegisterSpec {},
             };
             let history = History::from_actions(vec![
-                (0, Call(Write(1))),
-                (0, Response(Write(1))),
-                (0, Call(Read(1))),
-                (0, Response(Read(1))),
+                (0, Call(WriteCall(1))),
+                (0, Response(WriteResp(1))),
+                (0, Call(ReadCall)),
+                (0, Response(ReadResp(1))),
             ]);
             assert!(checker.is_linearizable(history));
         }
@@ -154,10 +159,10 @@ mod test {
                 spec: IntegerRegisterSpec {},
             };
             let history = History::from_actions(vec![
-                (0, Call(Write(1))),
-                (0, Response(Write(1))),
-                (0, Call(Read(2))),
-                (0, Response(Read(2))),
+                (0, Call(WriteCall(1))),
+                (0, Response(WriteResp(1))),
+                (0, Call(ReadCall)),
+                (0, Response(ReadResp(2))),
             ]);
             assert!(!checker.is_linearizable(history));
         }
@@ -177,18 +182,18 @@ mod test {
                 spec: IntegerRegisterSpec {},
             };
             let history = History::from_actions(vec![
-                (0, Call(Write(1))),
-                (1, Call(Write(2))),
-                (2, Call(Write(3))),
-                (3, Call(Read(3))),
-                (3, Response(Read(3))),
-                (3, Call(Read(2))),
-                (3, Response(Read(2))),
-                (3, Call(Read(1))),
-                (3, Response(Read(1))),
-                (0, Response(Write(1))),
-                (1, Response(Write(2))),
-                (2, Response(Write(3))),
+                (0, Call(WriteCall(1))),
+                (1, Call(WriteCall(2))),
+                (2, Call(WriteCall(3))),
+                (3, Call(ReadCall)),
+                (3, Response(ReadResp(3))),
+                (3, Call(ReadCall)),
+                (3, Response(ReadResp(2))),
+                (3, Call(ReadCall)),
+                (3, Response(ReadResp(1))),
+                (0, Response(WriteResp(1))),
+                (1, Response(WriteResp(2))),
+                (2, Response(WriteResp(3))),
             ]);
             assert!(checker.is_linearizable(history));
         }
@@ -207,12 +212,12 @@ mod test {
                 spec: IntegerRegisterSpec {},
             };
             let history = History::from_actions(vec![
-                (0, Call(Write(1))),
-                (1, Call(Read(1))),
-                (1, Response(Read(1))),
-                (2, Call(Read(0))),
-                (2, Response(Read(0))),
-                (0, Response(Write(1))),
+                (0, Call(WriteCall(1))),
+                (1, Call(ReadCall)),
+                (1, Response(ReadResp(1))),
+                (2, Call(ReadCall)),
+                (2, Response(ReadResp(0))),
+                (0, Response(WriteResp(1))),
             ]);
             assert!(!checker.is_linearizable(history));
         }
