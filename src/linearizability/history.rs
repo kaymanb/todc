@@ -6,31 +6,31 @@ use std::ops::{Index, IndexMut};
 type EntryID = usize;
 
 #[derive(PartialEq, Eq, Clone, Debug)]
-pub enum Action<C, R> {
-    Call(C),
-    Response(R),
+pub enum Action<T> {
+    Call(T),
+    Response(T),
 }
 
 #[derive(PartialEq, Eq, Clone, Debug)]
-pub struct CallEntry<C> {
+pub struct CallEntry<T> {
     pub id: EntryID,
-    pub action: C,
+    pub operation: T,
     pub response: EntryID,
 }
 
 #[derive(PartialEq, Eq, Clone, Debug)]
-pub struct ResponseEntry<R> {
+pub struct ResponseEntry<T> {
     pub id: EntryID,
-    pub action: R,
+    pub operation: T,
 }
 
 #[derive(PartialEq, Eq, Clone, Debug)]
-pub enum Entry<C, R> {
-    Call(CallEntry<C>),
-    Response(ResponseEntry<R>),
+pub enum Entry<T> {
+    Call(CallEntry<T>),
+    Response(ResponseEntry<T>),
 }
 
-impl<C, R> Entry<C, R> {
+impl<T> Entry<T> {
     pub fn id(&self) -> EntryID {
         match self {
             Entry::Call(entry) => entry.id,
@@ -40,19 +40,19 @@ impl<C, R> Entry<C, R> {
 }
 
 #[derive(PartialEq, Eq, Clone, Debug)]
-pub struct History<C, R> {
-    pub entries: Vec<Entry<C, R>>,
+pub struct History<T> {
+    pub entries: Vec<Entry<T>>,
     // When an entry is removed from this history, its index is recorded here.
     removed_from: Vec<Option<EntryID>>,
 }
 
-impl<C, R> History<C, R> {
+impl<T> History<T> {
     /// # Panics
     ///
     /// Panics if `actions` is empty.
     /// Panics if the resulting history would be incomplete.
-    pub fn from_actions(actions: Vec<(usize, Action<C, R>)>) -> Self {
-        let (processes, actions): (Vec<usize>, Vec<Action<C, R>>) = actions.into_iter().unzip();
+    pub fn from_actions(actions: Vec<(usize, Action<T>)>) -> Self {
+        let (processes, actions): (Vec<usize>, Vec<Action<T>>) = actions.into_iter().unzip();
 
         let num_processes = processes.iter().max().unwrap();
         let mut calls: Vec<VecDeque<usize>> = repeat_with(VecDeque::new)
@@ -71,12 +71,12 @@ impl<C, R> History<C, R> {
                 .into_iter()
                 .enumerate()
                 .map(|(i, action)| match action {
-                    Action::Call(c) => Entry::Call(CallEntry {
+                    Action::Call(operation) => Entry::Call(CallEntry {
                         id: i,
-                        action: c,
+                        operation,
                         response: responses[processes[i]].pop_front().unwrap(),
                     }),
-                    Action::Response(r) => Entry::Response(ResponseEntry { id: i, action: r }),
+                    Action::Response(operation) => Entry::Response(ResponseEntry { id: i, operation }),
                 })
                 .collect(),
             removed_from: repeat_with(|| None).take(processes.len()).collect(),
@@ -90,7 +90,7 @@ impl<C, R> History<C, R> {
     /// # Panics
     ///
     /// Panics if input entry was not previously removed from the history.
-    fn insert(&mut self, entry: Entry<C, R>) -> usize {
+    fn insert(&mut self, entry: Entry<T>) -> usize {
         match self.removed_from[entry.id()].take() {
             Some(index) => {
                 self.entries.insert(index, entry);
@@ -107,7 +107,7 @@ impl<C, R> History<C, R> {
         self.entries.is_empty()
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = &Entry<C, R>> {
+    pub fn iter(&self) -> impl Iterator<Item = &Entry<T>> {
         self.entries.iter()
     }
 
@@ -115,7 +115,7 @@ impl<C, R> History<C, R> {
         self.entries.len()
     }
 
-    pub fn lift(&mut self, i: usize) -> (Entry<C, R>, Entry<C, R>) {
+    pub fn lift(&mut self, i: usize) -> (Entry<T>, Entry<T>) {
         match self.remove(i) {
             Entry::Response(_) => panic!("Cannot lift a response entry out of the history"),
             Entry::Call(call) => {
@@ -125,28 +125,28 @@ impl<C, R> History<C, R> {
         }
     }
 
-    fn remove(&mut self, i: usize) -> Entry<C, R> {
+    fn remove(&mut self, i: usize) -> Entry<T> {
         let entry = self.entries.remove(i);
         self.removed_from[entry.id()] = Some(i);
         entry
     }
 
-    pub fn unlift(&mut self, call: Entry<C, R>, response: Entry<C, R>) -> (usize, usize) {
+    pub fn unlift(&mut self, call: Entry<T>, response: Entry<T>) -> (usize, usize) {
         let response_index = self.insert(response);
         let call_index = self.insert(call);
         (call_index, response_index)
     }
 }
 
-impl<C, R> Index<usize> for History<C, R> {
-    type Output = Entry<C, R>;
+impl<T> Index<usize> for History<T> {
+    type Output = Entry<T>;
 
     fn index(&self, i: usize) -> &Self::Output {
         self.entries.index(i)
     }
 }
 
-impl<C, R> IndexMut<usize> for History<C, R> {
+impl<T> IndexMut<usize> for History<T> {
     fn index_mut(&mut self, i: usize) -> &mut Self::Output {
         self.entries.index_mut(i)
     }
@@ -194,7 +194,7 @@ mod tests {
                 println!("{:?}", entry);
                 if let Entry::Call(call) = entry {
                     match &history[history.index_of_id(call.response)] {
-                        Entry::Response(response) => assert_eq!(call.action, response.action),
+                        Entry::Response(response) => assert_eq!(call.operation, response.operation),
                         Entry::Call(_) => panic!("Call entry was linked to another call entry"),
                     }
                 }
@@ -214,7 +214,7 @@ mod tests {
             for entry in history.iter() {
                 if let Entry::Call(call) = entry {
                     match &history[history.index_of_id(call.response)] {
-                        Entry::Response(response) => assert_eq!(call.action, response.action),
+                        Entry::Response(response) => assert_eq!(call.operation, response.operation),
                         Entry::Call(_) => panic!("Call entry was linked to another call entry"),
                     }
                 }
@@ -260,8 +260,8 @@ mod tests {
             history.lift(0);
             for (entry, letter) in zip(history.iter(), ["b", "c", "b", "c"]) {
                 match entry {
-                    Entry::Call(call) => assert_eq!(call.action, letter),
-                    Entry::Response(resp) => assert_eq!(resp.action, letter),
+                    Entry::Call(call) => assert_eq!(call.operation, letter),
+                    Entry::Response(resp) => assert_eq!(resp.operation, letter),
                 }
             }
         }
@@ -279,13 +279,13 @@ mod tests {
                 (1, Response("b")),
             ]);
             match history.remove(1) {
-                Entry::Call(call) => assert_eq!(call.action, "b"),
+                Entry::Call(call) => assert_eq!(call.operation, "b"),
                 Entry::Response(_) => panic!("Removed incorrect entry"),
             }
             for (entry, letter) in zip(history.iter(), ["a", "a", "b"]) {
                 match entry {
-                    Entry::Call(entry) => assert_eq!(entry.action, letter),
-                    Entry::Response(entry) => assert_eq!(entry.action, letter),
+                    Entry::Call(entry) => assert_eq!(entry.operation, letter),
+                    Entry::Response(entry) => assert_eq!(entry.operation, letter),
                 }
             }
         }
