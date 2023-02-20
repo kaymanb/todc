@@ -45,8 +45,8 @@ fn history_from_log(filename: &str) -> History<EtcdOperation> {
                     // object. Instead of the operations success being unknown, they can simply
                     // be treated as having failed, and should be marked as such in the logs.
                     Read(_, _) => panic!("Success of read operation cannot be unknown"),
-                    Write(_, value) => Write(Okay, value),
-                    CompareAndSwap(_, cas) => CompareAndSwap(Okay, cas)
+                    Write(_, value) => Write(Unknown, value),
+                    CompareAndSwap(_, cas) => CompareAndSwap(Unknown, cas)
                 },
                 Action::Response(_) => panic!("Expected previous operation by process {} to be a call", process)
             };
@@ -69,7 +69,11 @@ fn history_from_log(filename: &str) -> History<EtcdOperation> {
     for item in unknowns.into_iter() {
         actions.push(item);
     }
-    History::from_actions(actions)
+    let x = History::from_actions(actions);
+    for item in x.iter() {
+        println!("{:?}", item);
+    }
+    x
 }
 
 #[derive(PartialEq, Eq, Debug, Copy, Clone)]
@@ -77,6 +81,7 @@ enum EtcdStatus {
     Invoke,
     Okay,
     Fail,
+    Unknown
 }
 
 
@@ -88,6 +93,8 @@ impl EtcdStatus {
             Self::Okay
         } else if string == ":fail" {
             Self::Fail
+        } else if string == ":info" {
+            Self::Unknown
         } else {
             panic!("Unexpected status: '{}'", string)
         }
@@ -109,9 +116,10 @@ impl EtcdOperation {
         let status = EtcdStatus::from_log(words[0]);
         let operation = words[1];
         if operation == ":read" {
-            let value = if words[2] == "nil" {
+            let value = if words[2] == "nil" || words[2] == ":timed-out" {
                 None
             } else {
+                println!("{:?}", words[2]);
                 Some(words[2].parse::<u32>().unwrap())
             };
             Self::Read(status, value)
@@ -149,14 +157,15 @@ impl Specification for EtcdSpecification {
     ) -> (bool, Self::State) {
         match operation {
             Read(status, value) => match status {
-                Invoke => panic!("Cannot apply invoked operation"),
                 Okay => (value == state, state),
                 Fail => (value != state, state),
+                _ => panic!("Cannot apply read that has not succeeded or failed"),
             },
             Write(status, value) => match status {
-                Invoke => panic!("Cannot apply invoked operation"),
+                Invoke => panic!("Cannot apply write that has only been invoked"),
                 Okay => (true, Some(value)),
                 Fail => (true, state),
+                Unknown => (true, Some(value))
             },
             CompareAndSwap(status, (compare, swap)) => {
                 let success = match state {
@@ -164,9 +173,10 @@ impl Specification for EtcdSpecification {
                     None => false
                 };
                 match status {
-                    Invoke => panic!("Cannot apply invoked operation"),
+                    Invoke => panic!("Cannot apply CAS that has only been invoked"),
                     Okay => (success, if success { Some(swap) } else { state }),
                     Fail => (!success, state),
+                    Unknown => (true, if success { Some(swap) } else { state })
                 }
             }
         }
