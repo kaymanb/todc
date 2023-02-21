@@ -76,13 +76,17 @@ impl<T> History<T> {
                         operation,
                         response: responses[processes[i]].pop_front().unwrap(),
                     }),
-                    Action::Response(operation) => Entry::Response(ResponseEntry { id: i, operation }),
+                    Action::Response(operation) => {
+                        Entry::Response(ResponseEntry { id: i, operation })
+                    }
                 })
                 .collect(),
             removed_from: repeat_with(|| None).take(processes.len()).collect(),
         }
     }
 
+    // TODO: This operation is very expensive. Implementing History as a doubly-linked list could
+    // greatly improve performance.
     pub fn index_of_id(&self, id: EntryID) -> usize {
         self.iter().position(|e| e.id() == id).unwrap()
     }
