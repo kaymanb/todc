@@ -29,8 +29,8 @@ mod unbounded_atomic_snapshot {
                 handles.push(thread::spawn(move || {
                     let (update_call, update_resp) = snapshot.update(i, Some(i + 1));
                     let (scan_call, scan_resp) = snapshot.scan(i);
-                    let mut actions = actions.lock().unwrap();
                     for action in [update_call, update_resp, scan_call, scan_resp] {
+                        let mut actions = actions.lock().unwrap();
                         actions.push(action);
                     }
                 }));
