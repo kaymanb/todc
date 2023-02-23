@@ -1,7 +1,7 @@
 use core::time::Duration;
 use criterion::{criterion_group, criterion_main, BatchSize, Criterion};
 use todc::linearizability::WLGChecker;
-use utils::linearizability::specs::etcd::{history_from_log, EtcdSpecification};
+use utils::specifications::etcd::{history_from_log, EtcdSpecification};
 
 const FILE: &str = "benches/linearizability_wlg_checker/etcd_log_005.log";
 

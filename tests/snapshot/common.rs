@@ -2,23 +2,15 @@ use std::fmt::Debug;
 use std::time::Instant;
 
 use todc::snapshot::Snapshot;
+use utils::specifications::snapshot::{ProcessID, SnapshotOperation};
 
-#[derive(Debug)]
-pub enum Op {
-    Update,
-    Scan,
+pub struct Action<T, N> {
+    process: ProcessID,
+    operation: SnapshotOperation<T, N>,
+    happened_at: Instant,
 }
 
-#[derive(Debug)]
-pub struct Event<T> {
-    process: usize,
-    pub start: Instant,
-    end: Instant,
-    op: Op,
-    result: Option<T>,
-}
-
-pub struct HistoriedSnapshot<const N: usize, S: Snapshot<{ N }>> {
+pub struct RecordingSnapshot<const N: usize, S: Snapshot<{ N }>> {
     snapshot: S,
 }
 
@@ -27,30 +19,34 @@ impl<const N: usize, S: Snapshot<{ N }>> HistoriedSnapshot<N, S> {
         Self { snapshot: S::new() }
     }
 
-    pub fn scan(&self, i: usize) -> Event<[S::Value; N]> {
-        let start = Instant::now();
-        let result = Some(self.snapshot.scan(i));
-        let end = Instant::now();
-        Event {
+    pub fn scan(&self, i: usize) -> (Action<S::Value, N>, Action<S::Value, N>) {
+        let call = Action {
             process: i,
-            start,
-            end,
-            op: Op::Scan,
-            result,
-        }
+            operation: SnapshotOperation::Scan(i, None),
+            happened_at: Instant::now()
+        };
+        let view = self.snapshot.scan(i);
+        let response = Action {
+            process: i,
+            operation: SnapshotOperation::Scan(i, Some(view)),
+            happened_at: Instant::now()
+        };
+        (call, response)
     }
 
-    pub fn update(&self, i: usize, value: S::Value) -> Event<[S::Value; N]> {
-        let start = Instant::now();
-        self.snapshot.update(i, value);
-        let end = Instant::now();
-        Event {
+    pub fn update(&self, i: usize, value: S::Value) -> (Action<S::Value, N>, Action<S::Value, N>) {
+        let call = Action {
             process: i,
-            start,
-            end,
-            op: Op::Update,
-            result: None,
-        }
+            operation: SnapshotOperation::Update(i, value),
+            happened_at: Instant::now()
+        };
+        self.snapshot.update(i, value);
+        let response = Action {
+            process: i,
+            operation: SnapshotOperation::Update(i, value),
+            happened_at: Instant::now()
+        };
+        (call, response)
     }
 }
 

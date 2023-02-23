@@ -5,7 +5,7 @@ pub mod ar_98;
 
 /// An N-component Snapshot object.
 pub trait Snapshot<const N: usize> {
-    type Value;
+    type Value: Clone;
 
     /// Creates a snapshot object.
     fn new() -> Self;

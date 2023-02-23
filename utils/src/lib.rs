@@ -1,5 +1,1 @@
-pub mod linearizability {
-    pub mod specs {
-        pub mod etcd;
-    }
-}
+pub mod specifications;
