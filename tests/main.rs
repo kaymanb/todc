@@ -1,5 +1,5 @@
 #[cfg(test)]
 mod linearizability;
 
-#[cfg(test)]
+#[cfg(all(test, loom))]
 mod snapshot;

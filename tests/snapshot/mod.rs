@@ -35,7 +35,7 @@ impl<const N: usize, S: Snapshot<{ N }>> RecordingSnapshot<N, S> {
         Self { snapshot: S::new() }
     }
 
-    pub fn scan(&self, i: usize) -> (TimedAction<S::Value, N>, TimedAction<S::Value, N>) {
+    pub fn scan(&self, i: ProcessID) -> (TimedAction<S::Value, N>, TimedAction<S::Value, N>) {
         let call = TimedAction::new(
             i, Action::Call(SnapshotOperation::Scan(i, None))
         );
@@ -46,7 +46,7 @@ impl<const N: usize, S: Snapshot<{ N }>> RecordingSnapshot<N, S> {
         (call, response)
     }
 
-    pub fn update(&self, i: usize, value: S::Value) -> (TimedAction<S::Value, N>, TimedAction<S::Value, N>) {
+    pub fn update(&self, i: ProcessID, value: S::Value) -> (TimedAction<S::Value, N>, TimedAction<S::Value, N>) {
         let call = TimedAction::new(
             i, Action::Call(SnapshotOperation::Update(i, value.clone()))
         );
