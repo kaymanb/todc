@@ -1,5 +1,4 @@
 use core::array::from_fn;
-// use std::sync::atomic::{AtomicU64};
 
 use crate::register::{MutexRegister, Register};
 use crate::snapshot::Snapshot;
@@ -21,14 +20,11 @@ impl<T: Copy + Default, const N: usize> Default for UnboundedContents<T, N> {
     }
 }
 
-/// An single-writer atomic snapshot from unbounded single-writer multi-reader
-/// atomic regisers.
+/// A wait-free single-writer multi-reader snapshot.
 ///
 /// This implementation relies on storing sequence numbers that can
-/// grow arbitrarily large, hence the dependence on _unbounded_
-/// single-writer multi-writer atomic registers. In practice, these
-/// sequence numbers are stored as `u32`, and are unlikely to overflow
-/// during short-running programs.
+/// grow arbitrarily large, and so is dependent on unbounded single-writer
+/// multi-reader registers.
 pub struct UnboundedSnapshot<T: Copy + Default, const N: usize> {
     registers: [MutexRegister<UnboundedContents<T, N>>; N],
 }
@@ -88,17 +84,17 @@ impl<T: Copy + Default, const N: usize> Snapshot<N> for UnboundedSnapshot<T, N> 
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-struct UnboundedIntContents<const N: usize> {
+struct UnboundedAtomicContents<const N: usize> {
     value: u8,
     view: [u8; N],
     sequence: u16,
 }
 
-impl<const N: usize> Default for UnboundedIntContents<N> {
+impl<const N: usize> Default for UnboundedAtomicContents<N> {
     fn default() -> Self {
         // TODO: Find a better way to bound N
         if N > 5 {
-            panic!("UnboundedIntContents are only valid for 5 threads or fewer")
+            panic!("UnboundedAtomicContents are only valid for 5 threads or fewer")
         };
         Self {
             value: 0,
@@ -108,7 +104,7 @@ impl<const N: usize> Default for UnboundedIntContents<N> {
     }
 }
 
-impl<const N: usize> From<u64> for UnboundedIntContents<N> {
+impl<const N: usize> From<u64> for UnboundedAtomicContents<N> {
     fn from(encoding: u64) -> Self {
         // Decode value from right-must 8 bits
         let value = (encoding & (u8::MAX as u64)) as u8;
@@ -128,8 +124,8 @@ impl<const N: usize> From<u64> for UnboundedIntContents<N> {
     }
 }
 
-impl<const N: usize> From<UnboundedIntContents<N>> for u64 {
-    fn from(contents: UnboundedIntContents<N>) -> Self {
+impl<const N: usize> From<UnboundedAtomicContents<N>> for u64 {
+    fn from(contents: UnboundedAtomicContents<N>) -> Self {
         let mut result: u64 = 0;
         // Encode value as right-most 8 bits
         result |= contents.value as u64;
@@ -155,46 +151,46 @@ mod tests {
 
             #[test]
             fn decodes_if_two_threads() {
-                let contents = UnboundedIntContents {
+                let contents = UnboundedAtomicContents {
                     value: 200,
                     view: [1, 2],
                     sequence: 10_000,
                 };
                 let encoding: u64 = contents.clone().into();
-                assert_eq!(contents, UnboundedIntContents::from(encoding));
+                assert_eq!(contents, UnboundedAtomicContents::from(encoding));
             }
 
             #[test]
             fn decodes_if_three_threads() {
-                let contents = UnboundedIntContents {
+                let contents = UnboundedAtomicContents {
                     value: 200,
                     view: [1, 2, 3],
                     sequence: 10_000,
                 };
                 let encoding: u64 = contents.clone().into();
-                assert_eq!(contents, UnboundedIntContents::from(encoding));
+                assert_eq!(contents, UnboundedAtomicContents::from(encoding));
             }
 
             #[test]
             fn decodes_if_four_threads() {
-                let contents = UnboundedIntContents {
+                let contents = UnboundedAtomicContents {
                     value: 200,
                     view: [1, 2, 3, 4],
                     sequence: 10_000,
                 };
                 let encoding: u64 = contents.clone().into();
-                assert_eq!(contents, UnboundedIntContents::from(encoding));
+                assert_eq!(contents, UnboundedAtomicContents::from(encoding));
             }
 
             #[test]
             fn decodes_if_five_threads() {
-                let contents = UnboundedIntContents {
+                let contents = UnboundedAtomicContents {
                     value: 200,
                     view: [1, 2, 3, 4, 5],
                     sequence: 10_000,
                 };
                 let encoding: u64 = contents.clone().into();
-                assert_eq!(contents, UnboundedIntContents::from(encoding));
+                assert_eq!(contents, UnboundedAtomicContents::from(encoding));
             }
         }
 
@@ -206,7 +202,7 @@ mod tests {
                     $(
                         #[test]
                         fn $name() {
-                            let actual: u64 = UnboundedIntContents::<$value>::default().into();
+                            let actual: u64 = UnboundedAtomicContents::<$value>::default().into();
                             let expected: u64 = 0;
                             assert_eq!(actual, expected);
                         }
@@ -224,7 +220,7 @@ mod tests {
 
             #[test]
             fn encodes_if_two_threads() {
-                let mut contents: UnboundedIntContents<2> = UnboundedIntContents::default();
+                let mut contents: UnboundedAtomicContents<2> = UnboundedAtomicContents::default();
                 contents.value = 0b00100100;
                 contents.view = [0b10000001, 0b10000000];
                 contents.sequence = 0b11000000_11000000;
@@ -236,7 +232,7 @@ mod tests {
 
             #[test]
             fn encodes_if_three_threads() {
-                let mut contents: UnboundedIntContents<3> = UnboundedIntContents::default();
+                let mut contents: UnboundedAtomicContents<3> = UnboundedAtomicContents::default();
                 contents.value = 0b00100100;
                 contents.view = [0b10000011, 0b10000001, 0b10000000];
                 contents.sequence = 0b11000000_11000000;
@@ -248,7 +244,7 @@ mod tests {
 
             #[test]
             fn encodes_if_four_threads() {
-                let mut contents: UnboundedIntContents<4> = UnboundedIntContents::default();
+                let mut contents: UnboundedAtomicContents<4> = UnboundedAtomicContents::default();
                 contents.value = 0b00100100;
                 contents.view = [0b10000111, 0b10000011, 0b10000001, 0b10000000];
                 contents.sequence = 0b11000000_11000000;
@@ -260,7 +256,7 @@ mod tests {
 
             #[test]
             fn encodes_if_five_threads() {
-                let mut contents: UnboundedIntContents<5> = UnboundedIntContents::default();
+                let mut contents: UnboundedAtomicContents<5> = UnboundedAtomicContents::default();
                 contents.value = 0b00100100;
                 contents.view = [0b10001111, 0b10000111, 0b10000011, 0b10000001, 0b10000000];
                 contents.sequence = 0b11000000_11000000;

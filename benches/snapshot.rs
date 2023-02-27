@@ -33,10 +33,8 @@ fn do_updates_and_scans<const N: usize, S: Snapshot<N, Value = usize> + Send + S
 fn criterion_benchmark(c: &mut Criterion) {
     let mut group = c.benchmark_group("Snapshots");
 
-    let unbounded: Arc<UnboundedSnapshot<usize, NUM_THREADS>> =
-        Arc::new(UnboundedSnapshot::new());
-    let bounded: Arc<BoundedSnapshot<usize, NUM_THREADS>> =
-        Arc::new(BoundedSnapshot::new());
+    let unbounded: Arc<UnboundedSnapshot<usize, NUM_THREADS>> = Arc::new(UnboundedSnapshot::new());
+    let bounded: Arc<BoundedSnapshot<usize, NUM_THREADS>> = Arc::new(BoundedSnapshot::new());
     let fast: Arc<LatticeSnapshot<usize, NUM_THREADS, 256>> = Arc::new(LatticeSnapshot::new());
     group.bench_function("AAD+93 - Unbounded", |b| {
         b.iter(|| do_updates_and_scans(&unbounded))

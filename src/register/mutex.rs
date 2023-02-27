@@ -50,51 +50,51 @@ impl<T: Copy + Default> Clone for MutexRegister<T> {
 mod tests {
     use super::{MutexRegister, Register};
 
-    mod test_boolean {
+    mod boolean {
         use super::{MutexRegister, Register};
 
         #[test]
-        fn test_new() {
+        fn new() {
             MutexRegister::<bool>::new();
         }
 
         #[test]
-        fn test_read() {
+        fn read() {
             let register: MutexRegister<bool> = MutexRegister::new();
             assert_eq!(false, register.read());
         }
 
         #[test]
-        fn test_write() {
+        fn write() {
             let register = MutexRegister::new();
             register.write(true);
             assert_eq!(true, register.read());
         }
     }
 
-    mod test_integer {
+    mod integer {
         use super::{MutexRegister, Register};
 
         #[test]
-        fn test_new() {
+        fn new() {
             MutexRegister::<u32>::new();
         }
 
         #[test]
-        fn test_read() {
+        fn read() {
             let register: MutexRegister<u32> = MutexRegister::new();
             assert_eq!(0, register.read());
         }
 
         #[test]
-        fn test_write() {
+        fn write() {
             let register = MutexRegister::new();
             register.write(123);
             assert_eq!(123, register.read());
         }
     }
 
-    mod test_struct {
+    mod custom_struct {
         use super::{MutexRegister, Register};
 
         #[derive(Clone, Copy, PartialEq, Debug, Default)]
@@ -111,12 +111,12 @@ mod tests {
         }
 
         #[test]
-        fn test_new() {
+        fn new() {
             MutexRegister::<Thing>::new();
         }
 
         #[test]
-        fn test_read() {
+        fn read() {
             let register: MutexRegister<Thing> = MutexRegister::new();
             let thing = register.read();
             let same_thing = Thing {
@@ -128,7 +128,7 @@ mod tests {
         }
 
         #[test]
-        fn test_write() {
+        fn write() {
             let register = MutexRegister::new();
             let new_thing = Thing {
                 color: Color::Blue,
