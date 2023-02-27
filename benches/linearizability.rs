@@ -1,13 +1,15 @@
 use core::time::Duration;
-use criterion::{criterion_group, criterion_main, BatchSize, Criterion};
+
+use criterion::{criterion_main, criterion_group, BatchSize, Criterion};
+
 use todc::linearizability::WLGChecker;
 use utils::specifications::etcd::{history_from_log, EtcdSpecification};
 
-const FILE: &str = "benches/linearizability_wlg_checker/etcd_log_005.log";
+const LOG_FILE: &str = "benches/linearizability/etcd_log_005.log";
 
 fn criterion_benchmark(c: &mut Criterion) {
-    let history = history_from_log(FILE.to_owned());
-    c.bench_function("Check etcd linearizability", |b| {
+    let history = history_from_log(LOG_FILE.to_owned());
+    c.bench_function("WLGChecker - check linearizability of etcd log", |b| {
         b.iter_batched(
             || history.clone(),
             |history| WLGChecker::is_linearizable(EtcdSpecification, history),
@@ -17,8 +19,8 @@ fn criterion_benchmark(c: &mut Criterion) {
 }
 
 criterion_group! {
-    name = benches;
+    name = wlg_checker;
     config = Criterion::default().measurement_time(Duration::from_secs(6));
     targets = criterion_benchmark
 }
-criterion_main!(benches);
+criterion_main! { wlg_checker }

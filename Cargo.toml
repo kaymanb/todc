@@ -14,6 +14,10 @@ loom = "0.5"
 members = ["utils"]
 
 [[bench]]
-name = "linearizability_wlg_checker"
+name = "linearizability"
+harness = false
+
+[[bench]]
+name = "snapshot"
 harness = false
 
