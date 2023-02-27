@@ -8,13 +8,13 @@ use super::{RecordingSnapshot, TimedAction};
 
 const NUM_THREADS: usize = 3;
 
-mod atomic_snapshot {
+mod lattice_snapshot {
     use super::*;
-    use todc::snapshot::ar_98::AtomicSnapshot;
+    use todc::snapshot::ar_98::LatticeSnapshot;
 
     type ActionUnderTest = TimedAction<Option<usize>, NUM_THREADS>;
     type SnapshotUnderTest =
-        RecordingSnapshot<NUM_THREADS, AtomicSnapshot<Option<usize>, NUM_THREADS, 4>>;
+        RecordingSnapshot<NUM_THREADS, LatticeSnapshot<Option<usize>, NUM_THREADS, 4>>;
 
     #[test]
     // TODO: Reduce code duplication between these tests.

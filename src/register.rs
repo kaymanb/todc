@@ -1,7 +1,7 @@
 //! A shared read/write register.
-pub use self::atomic::AtomicRegister;
+pub use self::mutex::MutexRegister;
 
-mod atomic;
+mod mutex;
 
 /// A shared-memory register.
 pub trait Register {

@@ -1,7 +1,7 @@
 //! Implementations of atomic snapshot objects based on the paper by
 //! Attiya and Rachman [\[AR93\]](https://doi.org/10.1137/S0097539795279463).
 use super::Snapshot;
-use crate::register::{AtomicRegister, Register};
+use crate::register::{MutexRegister, Register};
 use core::array::from_fn;
 
 /// The contents of one component of a snapshot object.
@@ -65,13 +65,13 @@ enum Group<T: Copy + Default, const N: usize> {
 /// An object for classifying processes into two disjoint groups and updating
 /// their knowledge of the contents of a snapshot objects components.
 struct Classifier<T: Copy + Default, const N: usize> {
-    registers: [AtomicRegister<View<T, N>>; N],
+    registers: [MutexRegister<View<T, N>>; N],
 }
 
 impl<T: Copy + Default, const N: usize> Default for Classifier<T, N> {
     fn default() -> Self {
         Self {
-            registers: [(); N].map(|_| AtomicRegister::new()),
+            registers: [(); N].map(|_| MutexRegister::new()),
         }
     }
 }
@@ -108,12 +108,12 @@ impl<T: Copy + Default, const N: usize> Classifier<T, N> {
 }
 
 /// An N-process M-shot atomic snapshot object.
-pub struct AtomicSnapshot<T: Copy + Default, const N: usize, const M: u32> {
-    components: [AtomicRegister<Component<T>>; N],
+pub struct LatticeSnapshot<T: Copy + Default, const N: usize, const M: u32> {
+    components: [MutexRegister<Component<T>>; N],
     root: Box<CompleteBinaryTree<Classifier<T, N>>>,
 }
 
-impl<T: Copy + Default, const N: usize, const M: u32> AtomicSnapshot<T, N, M> {
+impl<T: Copy + Default, const N: usize, const M: u32> LatticeSnapshot<T, N, M> {
     /// Reads from each register and returns an array of the results.
     fn collect(&self) -> View<T, N> {
         View {
@@ -166,7 +166,7 @@ impl<T: Copy + Default, const N: usize, const M: u32> AtomicSnapshot<T, N, M> {
     }
 }
 
-impl<T: Copy + Default, const N: usize, const M: u32> Snapshot<N> for AtomicSnapshot<T, N, M> {
+impl<T: Copy + Default, const N: usize, const M: u32> Snapshot<N> for LatticeSnapshot<T, N, M> {
     type Value = T;
 
     /// Create a new snapshot object.
@@ -183,7 +183,7 @@ impl<T: Copy + Default, const N: usize, const M: u32> Snapshot<N> for AtomicSnap
         }
         let height = (M as f32).log2().floor() as u32;
         Self {
-            components: [(); N].map(|_| AtomicRegister::new()),
+            components: [(); N].map(|_| MutexRegister::new()),
             root: Box::new(CompleteBinaryTree::new(height)),
         }
     }

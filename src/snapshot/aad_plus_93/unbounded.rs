@@ -1,7 +1,7 @@
 use core::array::from_fn;
 // use std::sync::atomic::{AtomicU64};
 
-use crate::register::{AtomicRegister, Register};
+use crate::register::{MutexRegister, Register};
 use crate::snapshot::Snapshot;
 
 #[derive(Clone, Copy)]
@@ -29,22 +29,22 @@ impl<T: Copy + Default, const N: usize> Default for UnboundedContents<T, N> {
 /// single-writer multi-writer atomic registers. In practice, these
 /// sequence numbers are stored as `u32`, and are unlikely to overflow
 /// during short-running programs.
-pub struct UnboundedAtomicSnapshot<T: Copy + Default, const N: usize> {
-    registers: [AtomicRegister<UnboundedContents<T, N>>; N],
+pub struct UnboundedSnapshot<T: Copy + Default, const N: usize> {
+    registers: [MutexRegister<UnboundedContents<T, N>>; N],
 }
 
-impl<T: Copy + Default, const N: usize> UnboundedAtomicSnapshot<T, N> {
+impl<T: Copy + Default, const N: usize> UnboundedSnapshot<T, N> {
     fn collect(&self) -> [UnboundedContents<T, N>; N] {
         from_fn(|i| self.registers[i].read())
     }
 }
 
-impl<T: Copy + Default, const N: usize> Snapshot<N> for UnboundedAtomicSnapshot<T, N> {
+impl<T: Copy + Default, const N: usize> Snapshot<N> for UnboundedSnapshot<T, N> {
     type Value = T;
 
     fn new() -> Self {
         Self {
-            registers: [(); N].map(|_| AtomicRegister::<UnboundedContents<T, N>>::new()),
+            registers: [(); N].map(|_| MutexRegister::<UnboundedContents<T, N>>::new()),
         }
     }
 

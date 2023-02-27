@@ -8,14 +8,14 @@ use super::{RecordingSnapshot, TimedAction};
 
 const NUM_THREADS: usize = 3;
 
-mod unbounded_atomic_snapshot {
-    use todc::snapshot::aad_plus_93::UnboundedAtomicSnapshot;
+mod unbounded_snapshot {
+    use todc::snapshot::aad_plus_93::UnboundedSnapshot;
 
     use super::*;
 
     type ActionUnderTest = TimedAction<Option<usize>, NUM_THREADS>;
     type SnapshotUnderTest =
-        RecordingSnapshot<NUM_THREADS, UnboundedAtomicSnapshot<Option<usize>, NUM_THREADS>>;
+        RecordingSnapshot<NUM_THREADS, UnboundedSnapshot<Option<usize>, NUM_THREADS>>;
 
     #[test]
     fn test_one_shot_correctness() {
@@ -58,13 +58,13 @@ mod unbounded_atomic_snapshot {
     }
 }
 
-mod bounded_atomic_snapshot {
+mod bounded_snapshot {
     use super::*;
-    use todc::snapshot::aad_plus_93::BoundedAtomicSnapshot;
+    use todc::snapshot::aad_plus_93::BoundedSnapshot;
 
     type ActionUnderTest = TimedAction<Option<usize>, NUM_THREADS>;
     type SnapshotUnderTest =
-        RecordingSnapshot<NUM_THREADS, BoundedAtomicSnapshot<Option<usize>, NUM_THREADS>>;
+        RecordingSnapshot<NUM_THREADS, BoundedSnapshot<Option<usize>, NUM_THREADS>>;
 
     #[test]
     // TODO: Reduce code duplication between these tests.

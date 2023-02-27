@@ -2,27 +2,27 @@ use crate::sync::Mutex;
 
 use super::Register;
 
-/// An "atomic" shared-memory register.
+/// An shared-memory register.
 ///
 /// This object uses a mutex to protect against concurrent memory access,
 /// and is not lock-free.
 #[derive(Debug)]
-pub struct AtomicRegister<T: Copy + Default> {
+pub struct MutexRegister<T: Copy + Default> {
     mutex: Mutex<T>,
 }
 
-impl<T: Copy + Default> Default for AtomicRegister<T> {
+impl<T: Copy + Default> Default for MutexRegister<T> {
     fn default() -> Self {
-        AtomicRegister::<T>::new()
+        MutexRegister::<T>::new()
     }
 }
 
-impl<T: Copy + Default> Register for AtomicRegister<T> {
+impl<T: Copy + Default> Register for MutexRegister<T> {
     type Value = T;
 
     /// Creates a new atomic register with specified initial value.
     fn new() -> Self {
-        AtomicRegister {
+        Self {
             mutex: Mutex::new(T::default()),
         }
     }
@@ -38,9 +38,9 @@ impl<T: Copy + Default> Register for AtomicRegister<T> {
     }
 }
 
-impl<T: Copy + Default> Clone for AtomicRegister<T> {
-    fn clone(&self) -> AtomicRegister<T> {
-        let clone = AtomicRegister::new();
+impl<T: Copy + Default> Clone for MutexRegister<T> {
+    fn clone(&self) -> Self {
+        let clone = Self::new();
         clone.write(self.read());
         clone
     }
@@ -48,54 +48,54 @@ impl<T: Copy + Default> Clone for AtomicRegister<T> {
 
 #[cfg(test)]
 mod tests {
-    use super::{AtomicRegister, Register};
+    use super::{MutexRegister, Register};
 
     mod test_boolean {
-        use super::{AtomicRegister, Register};
+        use super::{MutexRegister, Register};
 
         #[test]
         fn test_new() {
-            AtomicRegister::<bool>::new();
+            MutexRegister::<bool>::new();
         }
 
         #[test]
         fn test_read() {
-            let register: AtomicRegister<bool> = AtomicRegister::new();
+            let register: MutexRegister<bool> = MutexRegister::new();
             assert_eq!(false, register.read());
         }
 
         #[test]
         fn test_write() {
-            let register = AtomicRegister::new();
+            let register = MutexRegister::new();
             register.write(true);
             assert_eq!(true, register.read());
         }
     }
 
     mod test_integer {
-        use super::{AtomicRegister, Register};
+        use super::{MutexRegister, Register};
 
         #[test]
         fn test_new() {
-            AtomicRegister::<u32>::new();
+            MutexRegister::<u32>::new();
         }
 
         #[test]
         fn test_read() {
-            let register: AtomicRegister<u32> = AtomicRegister::new();
+            let register: MutexRegister<u32> = MutexRegister::new();
             assert_eq!(0, register.read());
         }
 
         #[test]
         fn test_write() {
-            let register = AtomicRegister::new();
+            let register = MutexRegister::new();
             register.write(123);
             assert_eq!(123, register.read());
         }
     }
 
     mod test_struct {
-        use super::{AtomicRegister, Register};
+        use super::{MutexRegister, Register};
 
         #[derive(Clone, Copy, PartialEq, Debug, Default)]
         enum Color {
@@ -112,12 +112,12 @@ mod tests {
 
         #[test]
         fn test_new() {
-            AtomicRegister::<Thing>::new();
+            MutexRegister::<Thing>::new();
         }
 
         #[test]
         fn test_read() {
-            let register: AtomicRegister<Thing> = AtomicRegister::new();
+            let register: MutexRegister<Thing> = MutexRegister::new();
             let thing = register.read();
             let same_thing = Thing {
                 color: Color::Red,
@@ -129,7 +129,7 @@ mod tests {
 
         #[test]
         fn test_write() {
-            let register = AtomicRegister::new();
+            let register = MutexRegister::new();
             let new_thing = Thing {
                 color: Color::Blue,
                 height_in_ft: 10.0,

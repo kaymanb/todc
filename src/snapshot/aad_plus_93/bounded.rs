@@ -1,6 +1,6 @@
 use core::array::from_fn;
 
-use crate::register::{AtomicRegister, Register};
+use crate::register::{MutexRegister, Register};
 use crate::snapshot::Snapshot;
 
 #[derive(Clone, Copy)]
@@ -25,25 +25,25 @@ impl<T: Copy + Default, const N: usize> Default for BoundedContents<T, N> {
 
 /// A single-writer atomic snapshot from single-writer multi-reader
 /// atomic registers.
-pub struct BoundedAtomicSnapshot<T: Copy + Default, const N: usize> {
-    registers: [AtomicRegister<BoundedContents<T, N>>; N],
+pub struct BoundedSnapshot<T: Copy + Default, const N: usize> {
+    registers: [MutexRegister<BoundedContents<T, N>>; N],
     // Handshake bits
-    q: [[AtomicRegister<bool>; N]; N],
+    q: [[MutexRegister<bool>; N]; N],
 }
 
-impl<T: Copy + Default, const N: usize> BoundedAtomicSnapshot<T, N> {
+impl<T: Copy + Default, const N: usize> BoundedSnapshot<T, N> {
     fn collect(&self) -> [BoundedContents<T, N>; N] {
         from_fn(|i| self.registers[i].read())
     }
 }
 
-impl<T: Copy + Default, const N: usize> Snapshot<N> for BoundedAtomicSnapshot<T, N> {
+impl<T: Copy + Default, const N: usize> Snapshot<N> for BoundedSnapshot<T, N> {
     type Value = T;
 
     fn new() -> Self {
         Self {
-            registers: [(); N].map(|_| AtomicRegister::<BoundedContents<T, N>>::new()),
-            q: [[(); N]; N].map(|arr| arr.map(|_| AtomicRegister::<bool>::new())),
+            registers: [(); N].map(|_| MutexRegister::<BoundedContents<T, N>>::new()),
+            q: [[(); N]; N].map(|arr| arr.map(|_| MutexRegister::<bool>::new())),
         }
     }
 

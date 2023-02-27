@@ -4,8 +4,8 @@ use std::thread;
 
 use criterion::{criterion_group, criterion_main, Criterion};
 
-use todc::snapshot::aad_plus_93::{BoundedAtomicSnapshot, UnboundedAtomicSnapshot};
-use todc::snapshot::ar_98::AtomicSnapshot;
+use todc::snapshot::aad_plus_93::{BoundedSnapshot, UnboundedSnapshot};
+use todc::snapshot::ar_98::LatticeSnapshot;
 use todc::snapshot::Snapshot;
 
 const NUM_THREADS: usize = 3;
@@ -33,18 +33,18 @@ fn do_updates_and_scans<const N: usize, S: Snapshot<N, Value = usize> + Send + S
 fn criterion_benchmark(c: &mut Criterion) {
     let mut group = c.benchmark_group("Snapshots");
 
-    let unbounded: Arc<UnboundedAtomicSnapshot<usize, NUM_THREADS>> =
-        Arc::new(UnboundedAtomicSnapshot::new());
-    let bounded: Arc<BoundedAtomicSnapshot<usize, NUM_THREADS>> =
-        Arc::new(BoundedAtomicSnapshot::new());
-    let fast: Arc<AtomicSnapshot<usize, NUM_THREADS, 256>> = Arc::new(AtomicSnapshot::new());
+    let unbounded: Arc<UnboundedSnapshot<usize, NUM_THREADS>> =
+        Arc::new(UnboundedSnapshot::new());
+    let bounded: Arc<BoundedSnapshot<usize, NUM_THREADS>> =
+        Arc::new(BoundedSnapshot::new());
+    let fast: Arc<LatticeSnapshot<usize, NUM_THREADS, 256>> = Arc::new(LatticeSnapshot::new());
     group.bench_function("AAD+93 - Unbounded", |b| {
         b.iter(|| do_updates_and_scans(&unbounded))
     });
     group.bench_function("AAD+93 - Bounded", |b| {
         b.iter(|| do_updates_and_scans(&bounded))
     });
-    group.bench_function("AR98", |b| b.iter(|| do_updates_and_scans(&fast)));
+    group.bench_function("AR98 - Lattice", |b| b.iter(|| do_updates_and_scans(&fast)));
 }
 
 criterion_group! {
