@@ -1,7 +1,7 @@
 use core::array::from_fn;
 
-use crate::snapshot::Snapshot;
 use crate::register::{AtomicRegister, Register};
+use crate::snapshot::Snapshot;
 
 #[derive(Clone, Copy)]
 struct BoundedContents<T: Copy + Default, const N: usize> {

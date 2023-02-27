@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use loom::{sync::Mutex, thread};
-use todc::linearizability::{WLGChecker, history::History};
+use todc::linearizability::{history::History, WLGChecker};
 use utils::specifications::snapshot::SnapshotSpecification;
 
 use super::{RecordingSnapshot, TimedAction};
@@ -13,8 +13,8 @@ mod atomic_snapshot {
     use todc::snapshot::ar_98::AtomicSnapshot;
 
     type ActionUnderTest = TimedAction<Option<usize>, NUM_THREADS>;
-    type SnapshotUnderTest = RecordingSnapshot<NUM_THREADS, AtomicSnapshot<Option<usize>, NUM_THREADS, 4>>;
-
+    type SnapshotUnderTest =
+        RecordingSnapshot<NUM_THREADS, AtomicSnapshot<Option<usize>, NUM_THREADS, 4>>;
 
     #[test]
     // TODO: Reduce code duplication between these tests.
@@ -43,8 +43,16 @@ mod atomic_snapshot {
 
             let actions = &mut *actions.lock().unwrap();
             actions.sort_by(|a, b| a.happened_at.cmp(&b.happened_at));
-            let history = History::from_actions(actions.iter().map(|ta| (ta.process, ta.action.clone())).collect());
-            assert!(WLGChecker::is_linearizable(SnapshotSpecification::init(), history));
+            let history = History::from_actions(
+                actions
+                    .iter()
+                    .map(|ta| (ta.process, ta.action.clone()))
+                    .collect(),
+            );
+            assert!(WLGChecker::is_linearizable(
+                SnapshotSpecification::init(),
+                history
+            ));
         });
     }
 }

@@ -1,6 +1,6 @@
 use core::time::Duration;
 
-use criterion::{criterion_main, criterion_group, BatchSize, Criterion};
+use criterion::{criterion_group, criterion_main, BatchSize, Criterion};
 
 use todc::linearizability::WLGChecker;
 use utils::specifications::etcd::{history_from_log, EtcdSpecification};

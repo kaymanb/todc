@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use loom::{sync::Mutex, thread};
-use todc::linearizability::{WLGChecker, history::History};
+use todc::linearizability::{history::History, WLGChecker};
 use utils::specifications::snapshot::SnapshotSpecification;
 
 use super::{RecordingSnapshot, TimedAction};
@@ -12,10 +12,10 @@ mod unbounded_atomic_snapshot {
     use todc::snapshot::aad_plus_93::UnboundedAtomicSnapshot;
 
     use super::*;
-    
-    type ActionUnderTest = TimedAction<Option<usize>, NUM_THREADS>;
-    type SnapshotUnderTest = RecordingSnapshot<NUM_THREADS, UnboundedAtomicSnapshot<Option<usize>, NUM_THREADS>>;
 
+    type ActionUnderTest = TimedAction<Option<usize>, NUM_THREADS>;
+    type SnapshotUnderTest =
+        RecordingSnapshot<NUM_THREADS, UnboundedAtomicSnapshot<Option<usize>, NUM_THREADS>>;
 
     #[test]
     fn test_one_shot_correctness() {
@@ -43,9 +43,17 @@ mod unbounded_atomic_snapshot {
 
             let actions = &mut *actions.lock().unwrap();
             actions.sort_by(|a, b| a.happened_at.cmp(&b.happened_at));
-            let history = History::from_actions(actions.iter().map(|ta| (ta.process, ta.action.clone())).collect());
+            let history = History::from_actions(
+                actions
+                    .iter()
+                    .map(|ta| (ta.process, ta.action.clone()))
+                    .collect(),
+            );
             // TODO: Check that all possible histories are being generated...
-            assert!(WLGChecker::is_linearizable(SnapshotSpecification::init(), history));
+            assert!(WLGChecker::is_linearizable(
+                SnapshotSpecification::init(),
+                history
+            ));
         });
     }
 }
@@ -55,8 +63,8 @@ mod bounded_atomic_snapshot {
     use todc::snapshot::aad_plus_93::BoundedAtomicSnapshot;
 
     type ActionUnderTest = TimedAction<Option<usize>, NUM_THREADS>;
-    type SnapshotUnderTest = RecordingSnapshot<NUM_THREADS, BoundedAtomicSnapshot<Option<usize>, NUM_THREADS>>;
-
+    type SnapshotUnderTest =
+        RecordingSnapshot<NUM_THREADS, BoundedAtomicSnapshot<Option<usize>, NUM_THREADS>>;
 
     #[test]
     // TODO: Reduce code duplication between these tests.
@@ -85,8 +93,16 @@ mod bounded_atomic_snapshot {
 
             let actions = &mut *actions.lock().unwrap();
             actions.sort_by(|a, b| a.happened_at.cmp(&b.happened_at));
-            let history = History::from_actions(actions.iter().map(|ta| (ta.process, ta.action.clone())).collect());
-            assert!(WLGChecker::is_linearizable(SnapshotSpecification::init(), history));
+            let history = History::from_actions(
+                actions
+                    .iter()
+                    .map(|ta| (ta.process, ta.action.clone()))
+                    .collect(),
+            );
+            assert!(WLGChecker::is_linearizable(
+                SnapshotSpecification::init(),
+                history
+            ));
         });
     }
 }
