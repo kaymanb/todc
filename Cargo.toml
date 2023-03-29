@@ -3,6 +3,9 @@ name = "todc"
 version = "0.1.0"
 edition = "2018"
 
+[dependencies]
+num = "0.4"
+
 [dev-dependencies]
 utils = { path = "utils" }
 criterion = "0.4"
