@@ -63,7 +63,7 @@ mod tests {
     fn read_returns_previously_written_value() {
         let pair = Pair(true, false);
         let register: AtomicRegister<Pair> = AtomicRegister::new();
-        register.write(pair.clone());
+        register.write(pair);
         assert_eq!(pair, register.read());
     }
 }

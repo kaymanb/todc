@@ -10,6 +10,7 @@ use todc::snapshot::aad_plus_93::{
     BoundedSnapshot, UnboundedAtomicSnapshot, UnboundedMutexSnapshot,
 };
 use todc::snapshot::ar_98::LatticeSnapshot;
+use todc::snapshot::mutex::MutexSnapshot;
 use todc::snapshot::Snapshot;
 
 const MIN_NUM_THREADS: usize = 2;
@@ -17,15 +18,21 @@ const MAX_NUM_THREADS: usize = 5;
 
 #[derive(Hash, PartialEq, Eq)]
 enum SnapshotName {
-    UnboundedAtomic,
-    UnboundedMutex,
     Bounded,
     Lattice,
+    Mutex,
+    UnboundedAtomic,
+    UnboundedMutex,
 }
 
 // TODO: Deal with const generics in a better way...
 use SnapshotType::*;
 enum SnapshotType {
+    // MutexSnapshot
+    MutexTwo(Arc<MutexSnapshot<u8, 2>>),
+    MutexThree(Arc<MutexSnapshot<u8, 3>>),
+    MutexFour(Arc<MutexSnapshot<u8, 4>>),
+    MutexFive(Arc<MutexSnapshot<u8, 5>>),
     // UnboundedAtomicSnapshot
     UnboundedAtomicTwo(Arc<UnboundedAtomicSnapshot<2>>),
     UnboundedAtomicThree(Arc<UnboundedAtomicSnapshot<3>>),
@@ -76,6 +83,11 @@ fn benchmark_snapshots(
 ) {
     let snapshot = snapshots.get(&(name, num_threads)).unwrap();
     match snapshot {
+        // MutexSnapshot
+        MutexTwo(snapshot) => do_updates_and_scans(snapshot, num_threads),
+        MutexThree(snapshot) => do_updates_and_scans(snapshot, num_threads),
+        MutexFour(snapshot) => do_updates_and_scans(snapshot, num_threads),
+        MutexFive(snapshot) => do_updates_and_scans(snapshot, num_threads),
         // UnboundedAtomicSnapshot
         UnboundedAtomicTwo(snapshot) => do_updates_and_scans(snapshot, num_threads),
         UnboundedAtomicThree(snapshot) => do_updates_and_scans(snapshot, num_threads),
@@ -103,6 +115,23 @@ fn criterion_benchmark(c: &mut Criterion) {
     let mut group = c.benchmark_group("Snapshots");
 
     let snapshots: HashMap<(SnapshotName, usize), SnapshotType> = HashMap::from([
+        // MutexSnapshot
+        (
+            (SnapshotName::Mutex, 2),
+            MutexTwo(Arc::new(MutexSnapshot::new())),
+        ),
+        (
+            (SnapshotName::Mutex, 3),
+            MutexThree(Arc::new(MutexSnapshot::new())),
+        ),
+        (
+            (SnapshotName::Mutex, 4),
+            MutexFour(Arc::new(MutexSnapshot::new())),
+        ),
+        (
+            (SnapshotName::Mutex, 5),
+            MutexFive(Arc::new(MutexSnapshot::new())),
+        ),
         // UnboundedAtomicSnapshot
         (
             (SnapshotName::UnboundedAtomic, 2),
@@ -174,6 +203,9 @@ fn criterion_benchmark(c: &mut Criterion) {
     ]);
 
     for n in MIN_NUM_THREADS..MAX_NUM_THREADS + 1 {
+        group.bench_with_input(BenchmarkId::new("Mutex", n), &n, |b, n| {
+            b.iter(|| benchmark_snapshots(&snapshots, SnapshotName::Mutex, *n))
+        });
         group.bench_with_input(BenchmarkId::new("AAD+93/UnboundedAtomic", n), &n, |b, n| {
             b.iter(|| benchmark_snapshots(&snapshots, SnapshotName::UnboundedAtomic, *n))
         });

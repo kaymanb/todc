@@ -15,8 +15,7 @@ mod unbounded_atomic_snapshot {
     use super::*;
 
     type ActionUnderTest = TimedAction<u8, NUM_THREADS>;
-    type SnapshotUnderTest =
-        RecordingSnapshot<NUM_THREADS, UnboundedAtomicSnapshot<NUM_THREADS>>;
+    type SnapshotUnderTest = RecordingSnapshot<NUM_THREADS, UnboundedAtomicSnapshot<NUM_THREADS>>;
 
     #[test]
     fn test_one_shot_correctness() {
