@@ -7,7 +7,7 @@ use std::thread;
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 
 use todc::snapshot::aad_plus_93::{
-    BoundedSnapshot, UnboundedAtomicSnapshot, UnboundedMutexSnapshot,
+    BoundedAtomicSnapshot, BoundedMutexSnapshot, UnboundedAtomicSnapshot, UnboundedMutexSnapshot,
 };
 use todc::snapshot::ar_98::LatticeSnapshot;
 use todc::snapshot::mutex::MutexSnapshot;
@@ -18,7 +18,8 @@ const MAX_NUM_THREADS: usize = 5;
 
 #[derive(Hash, PartialEq, Eq)]
 enum SnapshotName {
-    Bounded,
+    BoundedAtomic,
+    BoundedMutex,
     Lattice,
     Mutex,
     UnboundedAtomic,
@@ -43,11 +44,16 @@ enum SnapshotType {
     UnboundedMutexThree(Arc<UnboundedMutexSnapshot<u8, 3>>),
     UnboundedMutexFour(Arc<UnboundedMutexSnapshot<u8, 4>>),
     UnboundedMutexFive(Arc<UnboundedMutexSnapshot<u8, 5>>),
-    // BoundedSnapshot
-    BoundedTwo(Arc<BoundedSnapshot<u8, 2>>),
-    BoundedThree(Arc<BoundedSnapshot<u8, 3>>),
-    BoundedFour(Arc<BoundedSnapshot<u8, 4>>),
-    BoundedFive(Arc<BoundedSnapshot<u8, 5>>),
+    // BoundedAtomicSnapshot
+    BoundedAtomicTwo(Arc<BoundedAtomicSnapshot<2>>),
+    BoundedAtomicThree(Arc<BoundedAtomicSnapshot<3>>),
+    BoundedAtomicFour(Arc<BoundedAtomicSnapshot<4>>),
+    BoundedAtomicFive(Arc<BoundedAtomicSnapshot<5>>),
+    // BoundedMutexSnapshot
+    BoundedMutexTwo(Arc<BoundedMutexSnapshot<u8, 2>>),
+    BoundedMutexThree(Arc<BoundedMutexSnapshot<u8, 3>>),
+    BoundedMutexFour(Arc<BoundedMutexSnapshot<u8, 4>>),
+    BoundedMutexFive(Arc<BoundedMutexSnapshot<u8, 5>>),
     // LatticeSnapshot
     LatticeTwo(Arc<LatticeSnapshot<u8, 2, 256>>),
     LatticeThree(Arc<LatticeSnapshot<u8, 3, 256>>),
@@ -98,11 +104,16 @@ fn benchmark_snapshots(
         UnboundedMutexThree(snapshot) => do_updates_and_scans(snapshot, num_threads),
         UnboundedMutexFour(snapshot) => do_updates_and_scans(snapshot, num_threads),
         UnboundedMutexFive(snapshot) => do_updates_and_scans(snapshot, num_threads),
-        // BoundedSnapshot
-        BoundedTwo(snapshot) => do_updates_and_scans(snapshot, num_threads),
-        BoundedThree(snapshot) => do_updates_and_scans(snapshot, num_threads),
-        BoundedFour(snapshot) => do_updates_and_scans(snapshot, num_threads),
-        BoundedFive(snapshot) => do_updates_and_scans(snapshot, num_threads),
+        // BoundedAtomicSnapshot
+        BoundedAtomicTwo(snapshot) => do_updates_and_scans(snapshot, num_threads),
+        BoundedAtomicThree(snapshot) => do_updates_and_scans(snapshot, num_threads),
+        BoundedAtomicFour(snapshot) => do_updates_and_scans(snapshot, num_threads),
+        BoundedAtomicFive(snapshot) => do_updates_and_scans(snapshot, num_threads),
+        // BoundedMutexSnapshot
+        BoundedMutexTwo(snapshot) => do_updates_and_scans(snapshot, num_threads),
+        BoundedMutexThree(snapshot) => do_updates_and_scans(snapshot, num_threads),
+        BoundedMutexFour(snapshot) => do_updates_and_scans(snapshot, num_threads),
+        BoundedMutexFive(snapshot) => do_updates_and_scans(snapshot, num_threads),
         // LatticeSnapshot
         LatticeTwo(snapshot) => do_updates_and_scans(snapshot, num_threads),
         LatticeThree(snapshot) => do_updates_and_scans(snapshot, num_threads),
@@ -166,22 +177,39 @@ fn criterion_benchmark(c: &mut Criterion) {
             (SnapshotName::UnboundedMutex, 5),
             UnboundedMutexFive(Arc::new(UnboundedMutexSnapshot::new())),
         ),
-        // BoundedSnapshot
+        // BoundedAtomicSnapshot
         (
-            (SnapshotName::Bounded, 2),
-            BoundedTwo(Arc::new(BoundedSnapshot::new())),
+            (SnapshotName::BoundedAtomic, 2),
+            BoundedAtomicTwo(Arc::new(BoundedAtomicSnapshot::new())),
         ),
         (
-            (SnapshotName::Bounded, 3),
-            BoundedThree(Arc::new(BoundedSnapshot::new())),
+            (SnapshotName::BoundedAtomic, 3),
+            BoundedAtomicThree(Arc::new(BoundedAtomicSnapshot::new())),
         ),
         (
-            (SnapshotName::Bounded, 4),
-            BoundedFour(Arc::new(BoundedSnapshot::new())),
+            (SnapshotName::BoundedAtomic, 4),
+            BoundedAtomicFour(Arc::new(BoundedAtomicSnapshot::new())),
         ),
         (
-            (SnapshotName::Bounded, 5),
-            BoundedFive(Arc::new(BoundedSnapshot::new())),
+            (SnapshotName::BoundedAtomic, 5),
+            BoundedAtomicFive(Arc::new(BoundedAtomicSnapshot::new())),
+        ),
+        // BoundedMutexSnapshot
+        (
+            (SnapshotName::BoundedMutex, 2),
+            BoundedMutexTwo(Arc::new(BoundedMutexSnapshot::new())),
+        ),
+        (
+            (SnapshotName::BoundedMutex, 3),
+            BoundedMutexThree(Arc::new(BoundedMutexSnapshot::new())),
+        ),
+        (
+            (SnapshotName::BoundedMutex, 4),
+            BoundedMutexFour(Arc::new(BoundedMutexSnapshot::new())),
+        ),
+        (
+            (SnapshotName::BoundedMutex, 5),
+            BoundedMutexFive(Arc::new(BoundedMutexSnapshot::new())),
         ),
         // LatticeSnapshot
         (
@@ -212,8 +240,11 @@ fn criterion_benchmark(c: &mut Criterion) {
         group.bench_with_input(BenchmarkId::new("AAD+93/UnboundedMutex", n), &n, |b, n| {
             b.iter(|| benchmark_snapshots(&snapshots, SnapshotName::UnboundedMutex, *n))
         });
-        group.bench_with_input(BenchmarkId::new("AAD+93/Bounded", n), &n, |b, n| {
-            b.iter(|| benchmark_snapshots(&snapshots, SnapshotName::Bounded, *n))
+        group.bench_with_input(BenchmarkId::new("AAD+93/BoundedAtomic", n), &n, |b, n| {
+            b.iter(|| benchmark_snapshots(&snapshots, SnapshotName::BoundedAtomic, *n))
+        });
+        group.bench_with_input(BenchmarkId::new("AAD+93/BoundedMutex", n), &n, |b, n| {
+            b.iter(|| benchmark_snapshots(&snapshots, SnapshotName::BoundedMutex, *n))
         });
         group.bench_with_input(BenchmarkId::new("AR98/Lattice", n), &n, |b, n| {
             b.iter(|| benchmark_snapshots(&snapshots, SnapshotName::Lattice, *n))

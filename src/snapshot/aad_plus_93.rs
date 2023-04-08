@@ -6,4 +6,6 @@ pub use unbounded::UnboundedMutexSnapshot;
 pub use unbounded::UnboundedSnapshot;
 
 mod bounded;
+pub use bounded::BoundedAtomicSnapshot;
+pub use bounded::BoundedMutexSnapshot;
 pub use bounded::BoundedSnapshot;

@@ -104,7 +104,7 @@ pub struct UnboundedContents<T: Copy + Default, const N: usize> {
 
 impl<T: Copy + Default, const N: usize> Default for UnboundedContents<T, N> {
     fn default() -> Self {
-        UnboundedContents {
+        Self {
             value: T::default(),
             view: [T::default(); N],
             sequence: 0,
@@ -255,7 +255,7 @@ mod tests {
             use super::*;
 
             #[test]
-            fn decodes_if_two_threads() {
+            fn decodes_if_two_processes() {
                 let contents = UnboundedAtomicContents {
                     value: 200,
                     view: [1, 2],
@@ -266,7 +266,7 @@ mod tests {
             }
 
             #[test]
-            fn decodes_if_three_threads() {
+            fn decodes_if_three_processes() {
                 let contents = UnboundedAtomicContents {
                     value: 200,
                     view: [1, 2, 3],
@@ -277,7 +277,7 @@ mod tests {
             }
 
             #[test]
-            fn decodes_if_four_threads() {
+            fn decodes_if_four_processes() {
                 let contents = UnboundedAtomicContents {
                     value: 200,
                     view: [1, 2, 3, 4],
@@ -288,7 +288,7 @@ mod tests {
             }
 
             #[test]
-            fn decodes_if_five_threads() {
+            fn decodes_if_five_processes() {
                 let contents = UnboundedAtomicContents {
                     value: 200,
                     view: [1, 2, 3, 4, 5],
@@ -317,14 +317,14 @@ mod tests {
 
             encodes_default_as_zeros! {
                 default_zeroes_if_one_thread: 1,
-                default_zeroes_if_two_threads: 2,
-                default_zeroes_if_three_threads: 3,
-                default_zeroes_if_four_threads: 4,
-                default_zeroes_if_five_threads: 5,
+                default_zeroes_if_two_processes: 2,
+                default_zeroes_if_three_processes: 3,
+                default_zeroes_if_four_processes: 4,
+                default_zeroes_if_five_processes: 5,
             }
 
             #[test]
-            fn encodes_if_two_threads() {
+            fn encodes_if_two_processes() {
                 let mut contents: UnboundedAtomicContents<2> = UnboundedAtomicContents::default();
                 contents.value = 0b00100100;
                 contents.view = [0b10000001, 0b10000000];
@@ -336,7 +336,7 @@ mod tests {
             }
 
             #[test]
-            fn encodes_if_three_threads() {
+            fn encodes_if_three_processes() {
                 let mut contents: UnboundedAtomicContents<3> = UnboundedAtomicContents::default();
                 contents.value = 0b00100100;
                 contents.view = [0b10000011, 0b10000001, 0b10000000];
@@ -348,7 +348,7 @@ mod tests {
             }
 
             #[test]
-            fn encodes_if_four_threads() {
+            fn encodes_if_four_processes() {
                 let mut contents: UnboundedAtomicContents<4> = UnboundedAtomicContents::default();
                 contents.value = 0b00100100;
                 contents.view = [0b10000111, 0b10000011, 0b10000001, 0b10000000];
@@ -360,7 +360,7 @@ mod tests {
             }
 
             #[test]
-            fn encodes_if_five_threads() {
+            fn encodes_if_five_processes() {
                 let mut contents: UnboundedAtomicContents<5> = UnboundedAtomicContents::default();
                 contents.value = 0b00100100;
                 contents.view = [0b10001111, 0b10000111, 0b10000011, 0b10000001, 0b10000000];
