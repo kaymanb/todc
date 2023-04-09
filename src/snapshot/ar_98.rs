@@ -107,13 +107,15 @@ impl<T: Copy + Default, const N: usize> Classifier<T, N> {
     }
 }
 
-/// An N-process M-shot atomic snapshot object.
-pub struct LatticeSnapshot<T: Copy + Default, const N: usize, const M: u32> {
+/// An N-process M-shot mutex-based snapshot object.
+// TODO: Modify this implementation to an infinity-shot snapshot object, as 
+// described in the paper. 
+pub struct LatticeMutexSnapshot<T: Copy + Default, const N: usize, const M: u32> {
     components: [MutexRegister<Component<T>>; N],
     root: Box<CompleteBinaryTree<Classifier<T, N>>>,
 }
 
-impl<T: Copy + Default, const N: usize, const M: u32> LatticeSnapshot<T, N, M> {
+impl<T: Copy + Default, const N: usize, const M: u32> LatticeMutexSnapshot<T, N, M> {
     /// Reads from each register and returns an array of the results.
     fn collect(&self) -> View<T, N> {
         View {
@@ -166,7 +168,7 @@ impl<T: Copy + Default, const N: usize, const M: u32> LatticeSnapshot<T, N, M> {
     }
 }
 
-impl<T: Copy + Default, const N: usize, const M: u32> Snapshot<N> for LatticeSnapshot<T, N, M> {
+impl<T: Copy + Default, const N: usize, const M: u32> Snapshot<N> for LatticeMutexSnapshot<T, N, M> {
     type Value = T;
 
     /// Create a new snapshot object.
@@ -227,6 +229,24 @@ impl<T: Default> CompleteBinaryTree<T> {
             Self::Leaf(_) => 1,
             Self::Node(_, _, child) => child.level() + 1,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Snapshot, LatticeMutexSnapshot};
+
+    #[test]
+    fn reads_and_writes() {
+        let snapshot: LatticeMutexSnapshot<usize, 3, 16> = LatticeMutexSnapshot::new();
+        assert_eq!([0, 0, 0], snapshot.scan(0));
+        snapshot.update(1, 1);
+        snapshot.update(2, 2);
+        assert_eq!([0, 1, 2], snapshot.scan(0));
+        snapshot.update(0, 10);
+        snapshot.update(1, 11);
+        snapshot.update(2, 12);
+        assert_eq!([10, 11, 12], snapshot.scan(0));
     }
 }
 

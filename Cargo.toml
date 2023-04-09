@@ -21,6 +21,6 @@ name = "linearizability"
 harness = false
 
 [[bench]]
-name = "snapshot"
+name = "compare_snapshot_implementations"
 harness = false
 

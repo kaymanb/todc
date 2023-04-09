@@ -9,7 +9,7 @@ use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use todc::snapshot::aad_plus_93::{
     BoundedAtomicSnapshot, BoundedMutexSnapshot, UnboundedAtomicSnapshot, UnboundedMutexSnapshot,
 };
-use todc::snapshot::ar_98::LatticeSnapshot;
+use todc::snapshot::ar_98::LatticeMutexSnapshot;
 use todc::snapshot::mutex::MutexSnapshot;
 use todc::snapshot::Snapshot;
 
@@ -20,7 +20,7 @@ const MAX_NUM_THREADS: usize = 5;
 enum SnapshotName {
     BoundedAtomic,
     BoundedMutex,
-    Lattice,
+    LatticeMutex,
     Mutex,
     UnboundedAtomic,
     UnboundedMutex,
@@ -54,11 +54,11 @@ enum SnapshotType {
     BoundedMutexThree(Arc<BoundedMutexSnapshot<u8, 3>>),
     BoundedMutexFour(Arc<BoundedMutexSnapshot<u8, 4>>),
     BoundedMutexFive(Arc<BoundedMutexSnapshot<u8, 5>>),
-    // LatticeSnapshot
-    LatticeTwo(Arc<LatticeSnapshot<u8, 2, 256>>),
-    LatticeThree(Arc<LatticeSnapshot<u8, 3, 256>>),
-    LatticeFour(Arc<LatticeSnapshot<u8, 4, 256>>),
-    LatticeFive(Arc<LatticeSnapshot<u8, 5, 256>>),
+    // LatticeMutexSnapshot
+    LatticeMutexTwo(Arc<LatticeMutexSnapshot<u8, 2, 256>>),
+    LatticeMutexThree(Arc<LatticeMutexSnapshot<u8, 3, 256>>),
+    LatticeMutexFour(Arc<LatticeMutexSnapshot<u8, 4, 256>>),
+    LatticeMutexFive(Arc<LatticeMutexSnapshot<u8, 5, 256>>),
 }
 
 fn do_updates_and_scans<const N: usize, S: Snapshot<N, Value = u8> + Send + Sync + 'static>(
@@ -114,11 +114,11 @@ fn benchmark_snapshots(
         BoundedMutexThree(snapshot) => do_updates_and_scans(snapshot, num_threads),
         BoundedMutexFour(snapshot) => do_updates_and_scans(snapshot, num_threads),
         BoundedMutexFive(snapshot) => do_updates_and_scans(snapshot, num_threads),
-        // LatticeSnapshot
-        LatticeTwo(snapshot) => do_updates_and_scans(snapshot, num_threads),
-        LatticeThree(snapshot) => do_updates_and_scans(snapshot, num_threads),
-        LatticeFour(snapshot) => do_updates_and_scans(snapshot, num_threads),
-        LatticeFive(snapshot) => do_updates_and_scans(snapshot, num_threads),
+        // LatticeMutexSnapshot
+        LatticeMutexTwo(snapshot) => do_updates_and_scans(snapshot, num_threads),
+        LatticeMutexThree(snapshot) => do_updates_and_scans(snapshot, num_threads),
+        LatticeMutexFour(snapshot) => do_updates_and_scans(snapshot, num_threads),
+        LatticeMutexFive(snapshot) => do_updates_and_scans(snapshot, num_threads),
     }
 }
 
@@ -211,22 +211,22 @@ fn criterion_benchmark(c: &mut Criterion) {
             (SnapshotName::BoundedMutex, 5),
             BoundedMutexFive(Arc::new(BoundedMutexSnapshot::new())),
         ),
-        // LatticeSnapshot
+        // LatticeMutexSnapshot
         (
-            (SnapshotName::Lattice, 2),
-            LatticeTwo(Arc::new(LatticeSnapshot::new())),
+            (SnapshotName::LatticeMutex, 2),
+            LatticeMutexTwo(Arc::new(LatticeMutexSnapshot::new())),
         ),
         (
-            (SnapshotName::Lattice, 3),
-            LatticeThree(Arc::new(LatticeSnapshot::new())),
+            (SnapshotName::LatticeMutex, 3),
+            LatticeMutexThree(Arc::new(LatticeMutexSnapshot::new())),
         ),
         (
-            (SnapshotName::Lattice, 4),
-            LatticeFour(Arc::new(LatticeSnapshot::new())),
+            (SnapshotName::LatticeMutex, 4),
+            LatticeMutexFour(Arc::new(LatticeMutexSnapshot::new())),
         ),
         (
-            (SnapshotName::Lattice, 5),
-            LatticeFive(Arc::new(LatticeSnapshot::new())),
+            (SnapshotName::LatticeMutex, 5),
+            LatticeMutexFive(Arc::new(LatticeMutexSnapshot::new())),
         ),
     ]);
 
@@ -246,8 +246,8 @@ fn criterion_benchmark(c: &mut Criterion) {
         group.bench_with_input(BenchmarkId::new("AAD+93/BoundedMutex", n), &n, |b, n| {
             b.iter(|| benchmark_snapshots(&snapshots, SnapshotName::BoundedMutex, *n))
         });
-        group.bench_with_input(BenchmarkId::new("AR98/Lattice", n), &n, |b, n| {
-            b.iter(|| benchmark_snapshots(&snapshots, SnapshotName::Lattice, *n))
+        group.bench_with_input(BenchmarkId::new("AR98/LatticeMutex", n), &n, |b, n| {
+            b.iter(|| benchmark_snapshots(&snapshots, SnapshotName::LatticeMutex, *n))
         });
     }
 }
