@@ -8,7 +8,7 @@ A library of algorithms used in theory of distributed computing, written in Rust
 cargo test
 ```
 
-Coverage report available with `cargo llvm-cov --html`.
+Coverage report available with `cargo llvm-cov --html --all`.
 
 ### Testing shared-memory
 

@@ -42,6 +42,7 @@ impl<T: Clone + Debug + Default + Eq + Hash, const N: usize> Specification
         match operation {
             Scan(_, result) => match result {
                 Some(view) => (view == state, state.clone()),
+                // TODO: Why does this need to be an Option?
                 None => panic!("Cannot apply scan without a resulting view"),
             },
             Update(i, value) => {
@@ -49,6 +50,75 @@ impl<T: Clone + Debug + Default + Eq + Hash, const N: usize> Specification
                 new_state[*i] = value.clone();
                 (true, new_state)
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{SnapshotOperation::*, SnapshotSpecification, Specification};
+
+    mod init {
+        use super::*;
+
+        #[test]
+        fn returns_array_of_defaults() {
+            let spec = SnapshotSpecification::<u32, 3>::init();
+            let state = spec.init();
+            assert_eq!(state, [u32::default(), u32::default(), u32::default()]);
+        }
+    }
+
+    mod apply {
+        use super::*;
+
+        type Value = u32;
+        const NUM_PROCESSES: usize = 3;
+
+        fn setup() -> (
+            SnapshotSpecification<Value, NUM_PROCESSES>,
+            [Value; NUM_PROCESSES],
+        ) {
+            let spec = SnapshotSpecification::<Value, NUM_PROCESSES>::init();
+            let state = spec.init();
+            (spec, state)
+        }
+
+        #[test]
+        fn update_applied_to_proper_component() {
+            let id = 1;
+            let value = 123;
+            let (spec, state) = setup();
+            let (_, new_state) = spec.apply(&Update(id, value), &state);
+            assert_eq!(new_state[id], value);
+            for i in [0, 2] {
+                assert_eq!(new_state[i], Value::default());
+            }
+        }
+
+        #[test]
+        fn update_always_valid() {
+            let (spec, state) = setup();
+            for i in 0..NUM_PROCESSES {
+                let (valid, _) = spec.apply(&Update(i, i as u32), &state);
+                assert!(valid);
+            }
+        }
+
+        #[test]
+        fn scan_doesnt_affect_state() {
+            let (spec, state) = setup();
+            let (_, new_state) = spec.apply(&Scan(0, Some([0, 0, 0])), &state);
+            assert_eq!(state, new_state);
+        }
+
+        #[test]
+        fn scan_not_valid_if_differs_from_state() {
+            let (spec, state) = setup();
+            let mut new_state = state.clone();
+            new_state[0] = 123;
+            let (valid, _) = spec.apply(&Scan(0, Some(new_state)), &state);
+            assert!(!valid);
         }
     }
 }

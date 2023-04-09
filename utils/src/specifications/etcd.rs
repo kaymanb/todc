@@ -5,6 +5,8 @@ use std::path::Path;
 use todc::linearizability::history::{Action, History};
 use todc::linearizability::Specification;
 
+type ProcessID = usize;
+
 /// Returns the contents of the file, line by line.
 ///
 /// Recipe from: https://doc.rust-lang.org/rust-by-example/std_misc/file/read_lines.html
@@ -15,8 +17,6 @@ where
     let file = File::open(filename)?;
     Ok(io::BufReader::new(file).lines())
 }
-
-type ProcessID = usize;
 
 /// Returns the history of an etcd server, as described by the input log file.
 pub fn history_from_log(filename: String) -> History<EtcdOperation> {

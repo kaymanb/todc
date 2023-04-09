@@ -28,11 +28,17 @@ pub trait Specification {
 
 pub struct WLGChecker {}
 
+type OperationEntry<S> = Entry<<S as Specification>::Operation>;
+type OperationCall<S> = (
+    (OperationEntry<S>, OperationEntry<S>),
+    <S as Specification>::State,
+);
+
 impl WLGChecker {
     pub fn is_linearizable<S: Specification>(spec: S, mut history: History<S::Operation>) -> bool {
         let mut state = spec.init();
         let mut linearized = vec![false; history.len()];
-        let mut calls: Vec<((Entry<S::Operation>, Entry<S::Operation>), S::State)> = Vec::new();
+        let mut calls: Vec<OperationCall<S>> = Vec::new();
         let mut cache: HashSet<(Vec<bool>, S::State)> = HashSet::new();
         let mut curr = 0;
         loop {
