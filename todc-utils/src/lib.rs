@@ -1,2 +1,2 @@
-pub mod specifications;
 pub mod linearizability;
+pub mod specifications;

@@ -108,8 +108,8 @@ impl<T: Copy + Default, const N: usize> Classifier<T, N> {
 }
 
 /// An N-process M-shot mutex-based snapshot object.
-// TODO: Modify this implementation to an infinity-shot snapshot object, as 
-// described in the paper. 
+// TODO: Modify this implementation to an infinity-shot snapshot object, as
+// described in the paper.
 pub struct LatticeMutexSnapshot<T: Copy + Default, const N: usize, const M: u32> {
     components: [MutexRegister<Component<T>>; N],
     root: Box<CompleteBinaryTree<Classifier<T, N>>>,
@@ -168,7 +168,9 @@ impl<T: Copy + Default, const N: usize, const M: u32> LatticeMutexSnapshot<T, N,
     }
 }
 
-impl<T: Copy + Default, const N: usize, const M: u32> Snapshot<N> for LatticeMutexSnapshot<T, N, M> {
+impl<T: Copy + Default, const N: usize, const M: u32> Snapshot<N>
+    for LatticeMutexSnapshot<T, N, M>
+{
     type Value = T;
 
     /// Create a new snapshot object.
@@ -234,7 +236,7 @@ impl<T: Default> CompleteBinaryTree<T> {
 
 #[cfg(test)]
 mod tests {
-    use super::{Snapshot, LatticeMutexSnapshot};
+    use super::{LatticeMutexSnapshot, Snapshot};
 
     #[test]
     fn reads_and_writes() {

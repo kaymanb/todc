@@ -56,10 +56,9 @@ pub fn history_from_log(filename: String) -> History<EtcdOperation> {
                     Write(_, value) => Write(Unknown, value),
                     CompareAndSwap(_, cas) => CompareAndSwap(Unknown, cas),
                 },
-                Action::Response(_) => panic!(
-                    "Expected previous operation by process {} to be a call",
-                    process
-                ),
+                Action::Response(_) => {
+                    panic!("Expected previous operation by process {process} to be a call")
+                }
             };
             unknowns.push((process, Action::Response(response)));
             continue;
@@ -103,7 +102,7 @@ impl EtcdStatus {
         } else if string == ":info" {
             Self::Unknown
         } else {
-            panic!("Unexpected status: '{}'", string)
+            panic!("Unexpected status: '{string}'")
         }
     }
 }
@@ -139,7 +138,7 @@ impl EtcdOperation {
             );
             Self::CompareAndSwap(status, value)
         } else {
-            panic!("Unexpected operation: '{}'", operation)
+            panic!("Unexpected operation: '{operation}'")
         }
     }
 }

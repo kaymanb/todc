@@ -1,3 +1,7 @@
 [workspace]
-members = ["todc-sm", "todc-utils"]
+members = [
+    "todc-mp",
+    "todc-sm", 
+    "todc-utils"
+]
 

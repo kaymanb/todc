@@ -161,7 +161,6 @@ mod bounded_mutex_snapshot {
     use super::*;
     use todc_sm::snapshot::aad_plus_93::BoundedMutexSnapshot;
 
-
     type ActionUnderTest = TimedAction<Option<usize>, NUM_THREADS>;
     type SnapshotUnderTest =
         RecordingSnapshot<NUM_THREADS, BoundedMutexSnapshot<Option<usize>, NUM_THREADS>>;
