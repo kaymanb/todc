@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use loom::{sync::Mutex, thread};
-use todc::linearizability::{history::History, WLGChecker};
-use utils::specifications::snapshot::SnapshotSpecification;
+use todc_utils::linearizability::{history::History, WLGChecker};
+use todc_utils::specifications::snapshot::SnapshotSpecification;
 
 use super::{RecordingSnapshot, TimedAction};
 
@@ -10,7 +10,7 @@ const NUM_THREADS: usize = 3;
 
 mod lattice_mutex_snapshot {
     use super::*;
-    use todc::snapshot::ar_98::LatticeMutexSnapshot;
+    use todc_sm::snapshot::ar_98::LatticeMutexSnapshot;
 
     type ActionUnderTest = TimedAction<Option<usize>, NUM_THREADS>;
     type SnapshotUnderTest =

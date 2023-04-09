@@ -1,8 +1,8 @@
 use std::time::Instant;
 
-use todc::linearizability::history::Action;
-use todc::snapshot::Snapshot;
-use utils::specifications::snapshot::{ProcessID, SnapshotOperation};
+use todc_sm::snapshot::Snapshot;
+use todc_utils::linearizability::history::Action;
+use todc_utils::specifications::snapshot::{ProcessID, SnapshotOperation};
 
 #[cfg(loom)]
 mod aad_plus_93;

@@ -1,0 +1,12 @@
+[package]
+name = "todc-utils"
+version = "0.1.0"
+edition = "2021"
+
+[dev-dependencies]
+criterion = "0.4"
+
+[[bench]]
+name = "wlg_checker"
+harness = false
+

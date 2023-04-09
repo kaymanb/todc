@@ -1,26 +1,3 @@
-[package]
-name = "todc"
-version = "0.1.0"
-edition = "2018"
-
-[dependencies]
-num = "0.4"
-
-[dev-dependencies]
-utils = { path = "utils" }
-criterion = "0.4"
-
-[target.'cfg(loom)'.dependencies]
-loom = "0.5"
-
 [workspace]
-members = ["utils"]
-
-[[bench]]
-name = "linearizability"
-harness = false
-
-[[bench]]
-name = "compare_snapshot_implementations"
-harness = false
+members = ["todc-sm", "todc-utils"]
 

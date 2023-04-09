@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use std::hash::Hash;
 use std::marker::PhantomData;
 
-use todc::linearizability::Specification;
+use crate::linearizability::Specification;
 
 use SnapshotOperation::{Scan, Update};
 

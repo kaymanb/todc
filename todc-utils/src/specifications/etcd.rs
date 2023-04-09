@@ -2,8 +2,8 @@ use std::fs::File;
 use std::io::{self, BufRead};
 use std::path::Path;
 
-use todc::linearizability::history::{Action, History};
-use todc::linearizability::Specification;
+use crate::linearizability::history::{Action, History};
+use crate::linearizability::Specification;
 
 type ProcessID = usize;
 

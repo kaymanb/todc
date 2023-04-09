@@ -1,6 +1,5 @@
-use todc::linearizability::WLGChecker;
-
-use utils::specifications::etcd::{history_from_log, EtcdSpecification};
+use todc_utils::linearizability::WLGChecker;
+use todc_utils::specifications::etcd::{history_from_log, EtcdSpecification};
 
 #[macro_export]
 macro_rules! etcd_tests {

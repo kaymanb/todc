@@ -1,8 +1,8 @@
 use std::fmt::Debug;
 use std::time::Instant;
 
-use todc::snapshot::Snapshot;
-use utils::specifications::snapshot::{ProcessID, SnapshotOperation};
+use todc_sm::snapshot::Snapshot;
+use todc_utils::specifications::snapshot::{ProcessID, SnapshotOperation};
 
 pub struct Action<T, N> {
     process: ProcessID,
