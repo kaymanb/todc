@@ -19,7 +19,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 .serve_connection(stream, service_fn(echo))
                 .await
             {
-                println!("Error serving connection: {:?}", err);
+                println!("Error serving connection: {err}");
             }
         });
     }
