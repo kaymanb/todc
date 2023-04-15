@@ -3,6 +3,7 @@ use hyper::body::Bytes;
 use hyper::{Method, Request, Response, StatusCode, Uri};
 
 pub mod net;
+pub mod register;
 
 use crate::net::TcpStream;
 
