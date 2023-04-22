@@ -1,4 +1,4 @@
-#[cfg(not(turmoil))]
+#[cfg(not(test))]
 pub(crate) use tokio::net::TcpStream;
-#[cfg(turmoil)]
+#[cfg(test)]
 pub(crate) use turmoil::net::TcpStream;

@@ -10,7 +10,7 @@ use turmoil::Builder;
 use todc_mp::register::AtomicRegister;
 
 mod common;
-use common::fetch_url;
+use common::{fetch_url, post_url};
 
 async fn serve_register() -> Result<(), Box<dyn std::error::Error + 'static>> {
     let addr = (IpAddr::from(Ipv4Addr::UNSPECIFIED), 9999);
@@ -36,7 +36,6 @@ mod local {
         #[test]
         fn responds_with_success() {
             let mut sim = Builder::new().build();
-
             sim.host("server1", move || serve_register());
 
             sim.client("client", async move {
@@ -52,7 +51,6 @@ mod local {
         #[test]
         fn responds_with_local_value_as_json() {
             let mut sim = Builder::new().build();
-
             sim.host("server1", move || serve_register());
 
             sim.client("client", async move {
@@ -61,6 +59,45 @@ mod local {
                 let body_bytes = response.collect().await?.to_bytes();
                 let body = std::str::from_utf8(&body_bytes)?;
                 assert_eq!(body, json!({"value": 0, "label": 0}).to_string());
+                Ok(())
+            });
+
+            sim.run().unwrap();
+        }
+    }
+
+    mod post {
+        use super::*;
+
+        #[test]
+        fn responds_with_success_if_valid_body() {
+            let mut sim = Builder::new().build();
+            sim.host("server1", move || serve_register());
+
+            sim.client("client", async move {
+                let url = Uri::from_static("http://server1:9999/register/local");
+                let value = json!({"value": 0, "label": 0});
+                let response = post_url(url, value.to_string()).await.unwrap();
+                assert!(response.status().is_success());
+                Ok(())
+            });
+
+            sim.run().unwrap();
+        }
+
+        #[test]
+        fn responds_by_echoing_request_body() {
+            let mut sim = Builder::new().build();
+            sim.host("server1", move || serve_register());
+
+            sim.client("client", async move {
+                let url = Uri::from_static("http://server1:9999/register/local");
+                let value = json!({"value": 0, "label": 0});
+                let response = post_url(url, value.to_string()).await.unwrap();
+
+                let body_bytes = response.collect().await?.to_bytes();
+                let body = std::str::from_utf8(&body_bytes)?;
+                assert_eq!(body, value.to_string());
                 Ok(())
             });
 
