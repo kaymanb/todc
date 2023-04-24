@@ -12,10 +12,9 @@ use todc_mp::register::AtomicRegister;
 mod common;
 use common::{fetch_url, post_url};
 
-async fn serve_register() -> Result<(), Box<dyn std::error::Error + 'static>> {
+async fn serve(register: AtomicRegister<u32>) -> Result<(), Box<dyn std::error::Error + 'static>> {
     let addr = (IpAddr::from(Ipv4Addr::UNSPECIFIED), 9999);
     let listener = TcpListener::bind(addr).await?;
-    let register = AtomicRegister::<u32>::new();
     loop {
         let (stream, _) = listener.accept().await?;
         let register = register.clone();
@@ -29,6 +28,73 @@ async fn serve_register() -> Result<(), Box<dyn std::error::Error + 'static>> {
         });
     }
 }
+
+mod register {
+    use super::*;
+
+    mod get {
+        use super::*;
+        
+        mod if_one_server {
+            use super::*;
+
+            #[test]
+            fn responds_with_success() {
+                let mut sim = Builder::new().build();
+                let register = AtomicRegister::default();
+                sim.host("server1", move || serve(register.clone()));
+
+                sim.client("client", async move {
+                    let url = Uri::from_static("http://server1:9999/register");
+                    let response = fetch_url(url).await.unwrap();
+                    assert!(response.status().is_success());
+                    Ok(())
+                });
+
+                sim.run().unwrap();
+            }
+
+            #[test]
+            fn responds_with_value_as_json() {
+                let mut sim = Builder::new().build();
+                let register = AtomicRegister::default();
+                sim.host("server1", move || serve(register.clone()));
+
+                sim.client("client", async move {
+                    let url = Uri::from_static("http://server1:9999/register");
+                    let response = fetch_url(url).await.unwrap();
+                    let body_bytes = response.collect().await?.to_bytes();
+                    let body = std::str::from_utf8(&body_bytes)?;
+                    assert_eq!(body, json!(0).to_string());
+                    Ok(())
+                });
+
+                sim.run().unwrap();
+            }
+        }
+
+        #[test]
+        fn responds_with_success() {
+            let mut sim = Builder::new().build();
+            let neighbors1 = vec![Uri::from_static("http://server2:9999")];
+            let register1 = AtomicRegister::new(neighbors1);
+            sim.host("server1", move || serve(register1.clone()));
+
+            let register2 = AtomicRegister::default();
+            sim.host("server2", move || serve(register2.clone()));
+
+            sim.client("client", async move {
+                let url = Uri::from_static("http://server1:9999/register");
+                let response = fetch_url(url).await.unwrap();
+                assert!(response.status().is_success());
+                Ok(())
+            });
+
+            sim.run().unwrap();
+        }
+    }
+}
+
 mod local {
     use super::*;
 
@@ -38,7 +104,8 @@ mod local {
         #[test]
         fn responds_with_success() {
             let mut sim = Builder::new().build();
-            sim.host("server1", move || serve_register());
+            let register = AtomicRegister::default();
+            sim.host("server1", move || serve(register.clone()));
 
             sim.client("client", async move {
                 let url = Uri::from_static("http://server1:9999/register/local");
@@ -53,7 +120,8 @@ mod local {
         #[test]
         fn responds_with_local_value_as_json() {
             let mut sim = Builder::new().build();
-            sim.host("server1", move || serve_register());
+            let register = AtomicRegister::default();
+            sim.host("server1", move || serve(register.clone()));
 
             sim.client("client", async move {
                 let url = Uri::from_static("http://server1:9999/register/local");
@@ -74,7 +142,8 @@ mod local {
         #[test]
         fn responds_with_success_if_valid_request() {
             let mut sim = Builder::new().build();
-            sim.host("server1", move || serve_register());
+            let register = AtomicRegister::default();
+            sim.host("server1", move || serve(register.clone()));
 
             sim.client("client", async move {
                 let url = Uri::from_static("http://server1:9999/register/local");
@@ -90,7 +159,8 @@ mod local {
         #[test]
         fn returns_value_with_larger_label() {
             let mut sim = Builder::new().build();
-            sim.host("server1", move || serve_register());
+            let register = AtomicRegister::default();
+            sim.host("server1", move || serve(register.clone()));
 
             sim.client("client", async move {
                 let url = Uri::from_static("http://server1:9999/register/local");
@@ -109,7 +179,8 @@ mod local {
         #[test]
         fn returns_larger_value_if_labels_are_equal() {
             let mut sim = Builder::new().build();
-            sim.host("server1", move || serve_register());
+            let register = AtomicRegister::default();
+            sim.host("server1", move || serve(register.clone()));
 
             sim.client("client", async move {
                 let url = Uri::from_static("http://server1:9999/register/local");
@@ -128,7 +199,8 @@ mod local {
         #[test]
         fn changes_internal_value_if_request_has_larger_label() {
             let mut sim = Builder::new().build();
-            sim.host("server1", move || serve_register());
+            let register = AtomicRegister::default();
+            sim.host("server1", move || serve(register.clone()));
 
             sim.client("client", async move {
                 let url = Uri::from_static("http://server1:9999/register/local");
@@ -149,7 +221,8 @@ mod local {
         #[test]
         fn does_not_change_internal_value_if_request_has_smaller_label() {
             let mut sim = Builder::new().build();
-            sim.host("server1", move || serve_register());
+            let register = AtomicRegister::default();
+            sim.host("server1", move || serve(register.clone()));
 
             sim.client("client", async move {
                 let url = Uri::from_static("http://server1:9999/register/local");

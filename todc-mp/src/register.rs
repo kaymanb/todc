@@ -7,10 +7,17 @@ use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 
 use bytes::{Buf, Bytes};
-use http_body_util::{BodyExt, Full};
+use http_body_util::combinators::BoxBody;
+use http_body_util::{BodyExt, Empty, Full};
+use hyper::body::Incoming;
 use hyper::service::Service;
-use hyper::{body::Incoming as IncomingBody, Method, Request, Response};
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use hyper::{Method, Request, Response, Uri};
+use serde::de::DeserializeOwned;
+use serde::{Deserialize, Serialize};
+
+use crate::net::TcpStream;
+
+type GenericError = Box<dyn std::error::Error + Send + Sync>;
 
 fn mk_response(
     s: String,
@@ -18,48 +25,120 @@ fn mk_response(
     Ok(Response::builder().body(Full::new(Bytes::from(s))).unwrap())
 }
 
-#[derive(Debug, Default, Deserialize, PartialEq, Eq, PartialOrd, Ord, Serialize)]
-struct LocalValue<T: Default + Ord + Send> {
+fn empty() -> BoxBody<Bytes, hyper::Error> {
+    Empty::<Bytes>::new()
+        .map_err(|never| match never {})
+        .boxed()
+}
+
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+struct LocalValue<T: Clone + Default + Ord + Send> {
     label: u32,
     value: T,
 }
 
 #[derive(Clone)]
-pub struct AtomicRegister<T: Default + Ord + Send> {
+pub struct AtomicRegister<T: Clone + Default + DeserializeOwned + Ord + Send> {
+    neighbors: Vec<Uri>,
     local: Arc<Mutex<LocalValue<T>>>,
 }
 
-impl<T: Default + Ord + Send> AtomicRegister<T> {
-    pub fn new() -> Self {
+impl<T: Clone + Default + DeserializeOwned + Ord + Send> Default for AtomicRegister<T> {
+    fn default() -> Self {
+        Self::new(Vec::new())
+    }
+}
+
+impl<T: Clone + Default + DeserializeOwned + Ord + Send> AtomicRegister<T> {
+    pub fn new(neighbors: Vec<Uri>) -> Self {
         Self {
+            neighbors,
             local: Arc::new(Mutex::new(LocalValue::default())),
         }
     }
-}
 
-impl<T: Default + Ord + Send> Default for AtomicRegister<T> {
-    fn default() -> Self {
-        Self::new()
+    async fn communicate(local: LocalValue<T>, neighbors: Vec<Uri>) -> Result<Vec<Option<LocalValue<T>>>, GenericError> {
+        let mut info: Vec<Option<LocalValue<T>>> = vec![Some(local)];
+        info.resize_with(neighbors.len() + 1, Default::default);
+
+        // TODO: Do this async, and respond when > 1/2 of info is full...
+        for (i, neighbor) in neighbors.iter().enumerate() {
+            // TODO: Shouldn't have to clone neighbor...
+            let mut parts = neighbor.clone().into_parts();
+            parts.path_and_query = Some("/register/local".parse().unwrap());
+            let addr = Uri::from_parts(parts)?;
+
+            // TODO: Refactor this to be better...
+            // let authority = addr.authority().map(|a| a.as_str()).unwrap_or_default();
+            let host = addr.host().expect("uri has no host");
+            let port = addr.port_u16().unwrap_or(80);
+            let authority = format!("{host}:{port}");
+            println!("{authority:?}");
+
+            let stream = TcpStream::connect(authority).await?;
+            
+            println!("Connected...");
+            let (mut sender, conn) = hyper::client::conn::http1::handshake(stream).await?;
+            tokio::task::spawn(async move {
+                if let Err(err) = conn.await {
+                    println!("Connection failed: {err}");
+                }
+            });
+            println!("Hand-Shaked...");
+
+            let authority = neighbor.authority().unwrap().clone();
+
+            let req = Request::builder()
+                .uri(neighbor)
+                .header(hyper::header::HOST, authority.as_str())
+                .body(empty())?;
+
+            let res = sender.send_request(req).await?;
+            println!("Sent to: {addr:?}");
+            let body = res.collect().await?.aggregate();
+            println!("Collected!");
+            let value: LocalValue<T> = serde_json::from_reader(body.reader())?;
+            println!("Serd-ed");
+            info[i] = Some(value);
+        }
+        Ok(info)
     }
 }
 
-impl<T: Debug + Default + DeserializeOwned + Ord + Send + Serialize + 'static>
-    Service<Request<IncomingBody>> for AtomicRegister<T>
+impl<T: Clone + Debug + Default + DeserializeOwned + Ord + Send + Serialize + 'static>
+    Service<Request<Incoming>> for AtomicRegister<T>
 {
-    type Response = Response<Full<Bytes>>; // RegisterResponse
-    type Error = Box<dyn std::error::Error + Send + Sync>; // GenericError
+    type Response = Response<Full<Bytes>>;
+    type Error = Box<dyn std::error::Error + Send + Sync>;
     type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
 
-    fn call(&mut self, req: Request<IncomingBody>) -> Self::Future {
+    fn call(&mut self, req: Request<Incoming>) -> Self::Future {
         let local = self.local.clone();
+        let neighbors = self.neighbors.clone();
         match (req.method(), req.uri().path()) {
-            (&Method::GET, "/register/local") => Box::pin(async move {
-                let serialized = serde_json::to_string(&local);
-                match serialized {
-                    Ok(value) => mk_response(value),
-                    Err(err) => Err(err.into()),
-                }
+            (&Method::GET, "/register") => Box::pin(async move {
+                // This inner-block is required for the compiler to understand 
+                // that the lock is not required accross the call to .await. 
+                // See: https://github.com/rust-lang/rust/issues/104883
+                let local = {
+                    let locked_local = local.lock().unwrap();
+                    locked_local.clone()
+                };
+                let info = Self::communicate(local, neighbors).await?;
+                let max = info.into_iter().max().unwrap().unwrap();
+                let raw_value = serde_json::to_string(&max.value)?;
+                println!("Responding!");
+                mk_response(raw_value)
             }),
+            // GET requests return this severs local value and associated label
+            (&Method::GET, "/register/local") => Box::pin(async move {
+                let value = serde_json::to_string(&local)?;
+                println!("Responding!"); // TODO: Why doesn't this print?
+                mk_response(value)
+            }),
+            // POST requests take another value and label as input, updates
+            // this servers local value to be the _greater_ of the two, and
+            // returns it, along with the associated label.
             (&Method::POST, "/register/local") => Box::pin(async move {
                 let body = req.collect().await?.aggregate();
                 let other: LocalValue<T> = serde_json::from_reader(body.reader())?;
@@ -69,13 +148,11 @@ impl<T: Debug + Default + DeserializeOwned + Ord + Send + Serialize + 'static>
                     *local = other
                 };
 
-                let serialized = serde_json::to_string(&*local);
-                match serialized {
-                    Ok(value) => mk_response(value),
-                    Err(err) => Err(err.into()),
-                }
+                let value = serde_json::to_string(&*local)?;
+                mk_response(value)
             }),
             // Return the 404 Not Found for other routes, and don't increment counter.
+            // TODO: Test this.
             _ => Box::pin(async { mk_response("oh no! not found".into()) }),
         }
     }
