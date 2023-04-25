@@ -95,7 +95,7 @@ mod register {
         }
 
         #[test]
-        fn responds_with_value_as_json() {
+        fn returns_value_as_json() {
             let mut sim = Builder::new().build();
             let neighbors1 = vec![Uri::from_static("http://server2:9999")];
             let register1 = AtomicRegister::new(neighbors1);
@@ -110,6 +110,36 @@ mod register {
                 let body_bytes = response.collect().await?.to_bytes();
                 let body = std::str::from_utf8(&body_bytes)?;
                 assert_eq!(body, json!(0).to_string());
+                Ok(())
+            });
+
+            sim.run().unwrap();
+        }
+
+        #[test]
+        fn returns_value_with_largest_label() {
+            let mut sim = Builder::new().build();
+            let neighbors1 = vec![Uri::from_static("http://server2:9999")];
+            let register1 = AtomicRegister::new(neighbors1);
+            sim.host("server1", move || serve(register1.clone()));
+
+            let register2 = AtomicRegister::default();
+            sim.host("server2", move || serve(register2.clone()));
+
+            sim.client("client", async move {
+                // Set local value of server2
+                let url2 = Uri::from_static("http://server2:9999/register/local");
+                let value = 123;
+                let larger = json!({"value": value, "label": 1});
+                post_url(url2.clone(), larger.to_string()).await.unwrap();
+
+                // Perform read operation on server1
+                let url = Uri::from_static("http://server1:9999/register");
+                let response = fetch_url(url).await.unwrap();
+                let body_bytes = response.collect().await?.to_bytes();
+                let body = std::str::from_utf8(&body_bytes)?;
+
+                assert_eq!(body, json!(value).to_string());
                 Ok(())
             });
 
