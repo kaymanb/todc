@@ -23,7 +23,7 @@ async fn serve(register: AtomicRegister<u32>) -> Result<(), Box<dyn std::error::
                 .serve_connection(stream, register)
                 .await
             {
-                println!("error serving connection: {:?}", err);
+                println!("Internal Server Error: {:?}", err);
             }
         });
     }
@@ -34,7 +34,7 @@ mod register {
 
     mod get {
         use super::*;
-        
+
         mod if_one_server {
             use super::*;
 
@@ -76,6 +76,7 @@ mod register {
         #[test]
         fn responds_with_success() {
             let mut sim = Builder::new().build();
+            // TODO: Make serving multiple registers easier...
             let neighbors1 = vec![Uri::from_static("http://server2:9999")];
             let register1 = AtomicRegister::new(neighbors1);
             sim.host("server1", move || serve(register1.clone()));
@@ -87,6 +88,28 @@ mod register {
                 let url = Uri::from_static("http://server1:9999/register");
                 let response = fetch_url(url).await.unwrap();
                 assert!(response.status().is_success());
+                Ok(())
+            });
+
+            sim.run().unwrap();
+        }
+
+        #[test]
+        fn responds_with_value_as_json() {
+            let mut sim = Builder::new().build();
+            let neighbors1 = vec![Uri::from_static("http://server2:9999")];
+            let register1 = AtomicRegister::new(neighbors1);
+            sim.host("server1", move || serve(register1.clone()));
+
+            let register2 = AtomicRegister::default();
+            sim.host("server2", move || serve(register2.clone()));
+
+            sim.client("client", async move {
+                let url = Uri::from_static("http://server1:9999/register");
+                let response = fetch_url(url).await.unwrap();
+                let body_bytes = response.collect().await?.to_bytes();
+                let body = std::str::from_utf8(&body_bytes)?;
+                assert_eq!(body, json!(0).to_string());
                 Ok(())
             });
 

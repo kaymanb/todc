@@ -57,7 +57,10 @@ impl<T: Clone + Default + DeserializeOwned + Ord + Send> AtomicRegister<T> {
         }
     }
 
-    async fn communicate(local: LocalValue<T>, neighbors: Vec<Uri>) -> Result<Vec<Option<LocalValue<T>>>, GenericError> {
+    async fn communicate(
+        local: LocalValue<T>,
+        neighbors: Vec<Uri>,
+    ) -> Result<Vec<Option<LocalValue<T>>>, GenericError> {
         let mut info: Vec<Option<LocalValue<T>>> = vec![Some(local)];
         info.resize_with(neighbors.len() + 1, Default::default);
 
@@ -68,37 +71,28 @@ impl<T: Clone + Default + DeserializeOwned + Ord + Send> AtomicRegister<T> {
             parts.path_and_query = Some("/register/local".parse().unwrap());
             let addr = Uri::from_parts(parts)?;
 
-            // TODO: Refactor this to be better...
-            // let authority = addr.authority().map(|a| a.as_str()).unwrap_or_default();
-            let host = addr.host().expect("uri has no host");
-            let port = addr.port_u16().unwrap_or(80);
-            let authority = format!("{host}:{port}");
-            println!("{authority:?}");
+            let authority = addr.authority().ok_or("Invalid URL")?.as_str();
 
+            // TODO: Refactor this to be better...
             let stream = TcpStream::connect(authority).await?;
-            
-            println!("Connected...");
             let (mut sender, conn) = hyper::client::conn::http1::handshake(stream).await?;
             tokio::task::spawn(async move {
                 if let Err(err) = conn.await {
                     println!("Connection failed: {err}");
                 }
             });
-            println!("Hand-Shaked...");
 
-            let authority = neighbor.authority().unwrap().clone();
+            let authority = neighbor.authority().unwrap();
 
             let req = Request::builder()
-                .uri(neighbor)
+                .uri(addr)
+                .method(Method::GET)
                 .header(hyper::header::HOST, authority.as_str())
                 .body(empty())?;
 
             let res = sender.send_request(req).await?;
-            println!("Sent to: {addr:?}");
-            let body = res.collect().await?.aggregate();
-            println!("Collected!");
-            let value: LocalValue<T> = serde_json::from_reader(body.reader())?;
-            println!("Serd-ed");
+            let body = res.collect().await?;
+            let value: LocalValue<T> = serde_json::from_reader(body.aggregate().reader())?;
             info[i] = Some(value);
         }
         Ok(info)
@@ -116,9 +110,10 @@ impl<T: Clone + Debug + Default + DeserializeOwned + Ord + Send + Serialize + 's
         let local = self.local.clone();
         let neighbors = self.neighbors.clone();
         match (req.method(), req.uri().path()) {
+            // GET requests perform a 'read' on the shared-register.
             (&Method::GET, "/register") => Box::pin(async move {
-                // This inner-block is required for the compiler to understand 
-                // that the lock is not required accross the call to .await. 
+                // This inner-block is required for the compiler to understand
+                // that the lock is not required accross the call to .await.
                 // See: https://github.com/rust-lang/rust/issues/104883
                 let local = {
                     let locked_local = local.lock().unwrap();
@@ -127,7 +122,6 @@ impl<T: Clone + Debug + Default + DeserializeOwned + Ord + Send + Serialize + 's
                 let info = Self::communicate(local, neighbors).await?;
                 let max = info.into_iter().max().unwrap().unwrap();
                 let raw_value = serde_json::to_string(&max.value)?;
-                println!("Responding!");
                 mk_response(raw_value)
             }),
             // GET requests return this severs local value and associated label
@@ -152,8 +146,8 @@ impl<T: Clone + Debug + Default + DeserializeOwned + Ord + Send + Serialize + 's
                 mk_response(value)
             }),
             // Return the 404 Not Found for other routes, and don't increment counter.
-            // TODO: Test this.
-            _ => Box::pin(async { mk_response("oh no! not found".into()) }),
+            // TODO: Improve this...
+            _ => Box::pin(async { mk_response("404 Not Found".into()) }),
         }
     }
 }
