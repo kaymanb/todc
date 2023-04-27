@@ -14,6 +14,7 @@ use hyper::service::Service;
 use hyper::{Method, Request, Response, Uri};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
+use tokio::task::JoinSet;
 
 use crate::net::TcpStream;
 
@@ -43,13 +44,13 @@ pub struct AtomicRegister<T: Clone + Default + DeserializeOwned + Ord + Send> {
     local: Arc<Mutex<LocalValue<T>>>,
 }
 
-impl<T: Clone + Default + DeserializeOwned + Ord + Send> Default for AtomicRegister<T> {
+impl<T: Clone + Default + DeserializeOwned + Ord + Send + 'static> Default for AtomicRegister<T> {
     fn default() -> Self {
         Self::new(Vec::new())
     }
 }
 
-impl<T: Clone + Default + DeserializeOwned + Ord + Send> AtomicRegister<T> {
+impl<T: Clone + Default + DeserializeOwned + Ord + Send + 'static> AtomicRegister<T> {
     pub fn new(neighbors: Vec<Uri>) -> Self {
         Self {
             neighbors,
@@ -61,41 +62,55 @@ impl<T: Clone + Default + DeserializeOwned + Ord + Send> AtomicRegister<T> {
         local: LocalValue<T>,
         neighbors: Vec<Uri>,
     ) -> Result<Vec<Option<LocalValue<T>>>, GenericError> {
-        let mut info: Vec<Option<LocalValue<T>>> = vec![Some(local)];
-        info.resize_with(neighbors.len() + 1, Default::default);
+        let mut results: Vec<Option<LocalValue<T>>> = vec![Some(local)];
+        results.resize_with(neighbors.len() + 1, Default::default);
 
-        // TODO: Do this async, and respond when > 1/2 of info is full...
-        for (i, neighbor) in neighbors.iter().enumerate() {
-            // TODO: Shouldn't have to clone neighbor...
-            let mut parts = neighbor.clone().into_parts();
-            parts.path_and_query = Some("/register/local".parse().unwrap());
-            let addr = Uri::from_parts(parts)?;
+        let info = Arc::new(Mutex::new(results));
+        let mut handles = JoinSet::new();
 
-            let authority = addr.authority().ok_or("Invalid URL")?.as_str();
+        // let majority = (neighbors.len() as f32 / 2.0).ceil();
+        for (i, neighbor) in neighbors.into_iter().enumerate() {
+            let info = info.clone();
+            handles.spawn(async move {
+                // TODO: Refactor this to be better...
+                let mut parts = neighbor.into_parts();
+                parts.path_and_query = Some("/register/local".parse().unwrap());
+                let addr = Uri::from_parts(parts)?;
 
-            // TODO: Refactor this to be better...
-            let stream = TcpStream::connect(authority).await?;
-            let (mut sender, conn) = hyper::client::conn::http1::handshake(stream).await?;
-            tokio::task::spawn(async move {
-                if let Err(err) = conn.await {
-                    println!("Connection failed: {err}");
-                }
+                let authority = addr.authority().ok_or("Invalid URL")?.as_str();
+
+                let stream = TcpStream::connect(authority).await?;
+                let (mut sender, conn) = hyper::client::conn::http1::handshake(stream).await?;
+                tokio::task::spawn(async move {
+                    if let Err(err) = conn.await {
+                        println!("Connection failed: {err}");
+                    }
+                });
+
+                let authority = addr.authority().unwrap().clone();
+
+                let req = Request::builder()
+                    .uri(addr)
+                    .method(Method::GET)
+                    .header(hyper::header::HOST, authority.as_str())
+                    .body(empty())?;
+
+                let res = sender.send_request(req).await?;
+                let body = res.collect().await?;
+                let value: LocalValue<T> = serde_json::from_reader(body.aggregate().reader())?;
+
+                let mut data = info.lock().unwrap();
+                (*data)[i] = Some(value);
+                Ok::<(), GenericError>(())
             });
-
-            let authority = neighbor.authority().unwrap();
-
-            let req = Request::builder()
-                .uri(addr)
-                .method(Method::GET)
-                .header(hyper::header::HOST, authority.as_str())
-                .body(empty())?;
-
-            let res = sender.send_request(req).await?;
-            let body = res.collect().await?;
-            let value: LocalValue<T> = serde_json::from_reader(body.aggregate().reader())?;
-            info[i] = Some(value);
         }
-        Ok(info)
+
+        // Await all async requests
+        // TODO: We only need to await for a majority of requests to complete...
+        while let Some(_res) = handles.join_next().await {}
+
+        let results = info.lock().unwrap().clone();
+        Ok(results)
     }
 }
 
