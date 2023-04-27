@@ -117,7 +117,7 @@ mod register {
         }
 
         #[test]
-        fn returns_value_with_largest_label() {
+        fn returns_value_from_other_server_with_larger_label() {
             let mut sim = Builder::new().build();
             let neighbors1 = vec![Uri::from_static("http://server2:9999")];
             let register1 = AtomicRegister::new(neighbors1);

@@ -68,7 +68,7 @@ impl<T: Clone + Default + DeserializeOwned + Ord + Send + 'static> AtomicRegiste
         let info = Arc::new(Mutex::new(results));
         let mut handles = JoinSet::new();
 
-        // let majority = (neighbors.len() as f32 / 2.0).ceil();
+        let majority = (neighbors.len() as f32 / 2.0).ceil() as u32;
         for (i, neighbor) in neighbors.into_iter().enumerate() {
             let info = info.clone();
             handles.spawn(async move {
@@ -105,9 +105,12 @@ impl<T: Clone + Default + DeserializeOwned + Ord + Send + 'static> AtomicRegiste
             });
         }
 
-        // Await all async requests
-        // TODO: We only need to await for a majority of requests to complete...
-        while let Some(_res) = handles.join_next().await {}
+        let mut acks = 0;
+        while acks < majority {
+            if handles.join_next().await.is_some() {
+                acks += 1;
+            }
+        }
 
         let results = info.lock().unwrap().clone();
         Ok(results)
