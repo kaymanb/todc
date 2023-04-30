@@ -7,50 +7,57 @@ use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 
 use bytes::{Buf, Bytes};
-use http_body_util::combinators::BoxBody;
-use http_body_util::{BodyExt, Empty, Full};
+use http_body_util::{BodyExt, Full};
 use hyper::body::Incoming;
 use hyper::service::Service;
 use hyper::{Method, Request, Response, Uri};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
+use serde_json::Value as JSON;
 use tokio::task::JoinSet;
 
-use crate::net::TcpStream;
-
-type GenericError = Box<dyn std::error::Error + Send + Sync>;
+use crate::{get, post, GenericError};
 
 fn mk_response(
-    s: String,
+    value: JSON,
 ) -> Result<Response<Full<Bytes>>, Box<dyn std::error::Error + Send + Sync>> {
-    Ok(Response::builder().body(Full::new(Bytes::from(s))).unwrap())
-}
-
-fn empty() -> BoxBody<Bytes, hyper::Error> {
-    Empty::<Bytes>::new()
-        .map_err(|never| match never {})
-        .boxed()
+    Ok(Response::builder()
+        .body(Full::new(Bytes::from(value.to_string())))
+        .unwrap())
 }
 
 #[derive(Clone, Debug, Default, Deserialize, PartialEq, Eq, PartialOrd, Ord, Serialize)]
-struct LocalValue<T: Clone + Default + Ord + Send> {
+struct LocalValue<T: Clone + Debug + Default + Ord + Send> {
     label: u32,
     value: T,
 }
 
 #[derive(Clone)]
-pub struct AtomicRegister<T: Clone + Default + DeserializeOwned + Ord + Send> {
+pub struct AtomicRegister<T: Clone + Debug + Default + DeserializeOwned + Ord + Send> {
     neighbors: Vec<Uri>,
     local: Arc<Mutex<LocalValue<T>>>,
 }
 
-impl<T: Clone + Default + DeserializeOwned + Ord + Send + 'static> Default for AtomicRegister<T> {
+impl<T: Clone + Debug + Default + DeserializeOwned + Ord + Send + Serialize + 'static> Default
+    for AtomicRegister<T>
+{
     fn default() -> Self {
         Self::new(Vec::new())
     }
 }
 
-impl<T: Clone + Default + DeserializeOwned + Ord + Send + 'static> AtomicRegister<T> {
+#[derive(Clone, Copy)]
+enum MessageType {
+    /// A message _announcing_ the senders value and label, with the intention of
+    /// having recievers adopt the value if its label is larger than than theirs.
+    Announce,
+    /// A message _asking_ for the recievers value and label.
+    Ask,
+}
+
+impl<T: Clone + Debug + Default + DeserializeOwned + Ord + Send + Serialize + 'static>
+    AtomicRegister<T>
+{
     pub fn new(neighbors: Vec<Uri>) -> Self {
         Self {
             neighbors,
@@ -59,48 +66,33 @@ impl<T: Clone + Default + DeserializeOwned + Ord + Send + 'static> AtomicRegiste
     }
 
     async fn communicate(
-        local: LocalValue<T>,
-        neighbors: Vec<Uri>,
+        &self,
+        message: MessageType,
     ) -> Result<Vec<Option<LocalValue<T>>>, GenericError> {
-        let mut results: Vec<Option<LocalValue<T>>> = vec![Some(local)];
-        results.resize_with(neighbors.len() + 1, Default::default);
+        let local = self.local.lock().unwrap().clone();
+        let mut results: Vec<Option<LocalValue<T>>> = vec![Some(local.clone())];
+        results.resize_with(self.neighbors.len() + 1, Default::default);
 
-        let info = Arc::new(Mutex::new(results));
         let mut handles = JoinSet::new();
+        let info = Arc::new(Mutex::new(results));
+        let majority = (self.neighbors.len() as f32 / 2.0).ceil() as u32;
 
-        let majority = (neighbors.len() as f32 / 2.0).ceil() as u32;
-        for (i, neighbor) in neighbors.into_iter().enumerate() {
+        for (i, url) in self.neighbor_urls().into_iter().enumerate() {
             let info = info.clone();
+            let local = local.clone();
             handles.spawn(async move {
-                // TODO: Refactor this to be better...
-                let mut parts = neighbor.into_parts();
-                parts.path_and_query = Some("/register/local".parse().unwrap());
-                let addr = Uri::from_parts(parts)?;
-
-                let authority = addr.authority().ok_or("Invalid URL")?.as_str();
-
-                let stream = TcpStream::connect(authority).await?;
-                let (mut sender, conn) = hyper::client::conn::http1::handshake(stream).await?;
-                tokio::task::spawn(async move {
-                    if let Err(err) = conn.await {
-                        println!("Connection failed: {err}");
+                let res = match message {
+                    MessageType::Announce => {
+                        let body = serde_json::to_value(local)?;
+                        post(url, body).await?
                     }
-                });
+                    MessageType::Ask => get(url).await?,
+                };
+                let body = res.collect().await?.aggregate();
+                let value: LocalValue<T> = serde_json::from_reader(body.reader())?;
 
-                let authority = addr.authority().unwrap().clone();
-
-                let req = Request::builder()
-                    .uri(addr)
-                    .method(Method::GET)
-                    .header(hyper::header::HOST, authority.as_str())
-                    .body(empty())?;
-
-                let res = sender.send_request(req).await?;
-                let body = res.collect().await?;
-                let value: LocalValue<T> = serde_json::from_reader(body.aggregate().reader())?;
-
-                let mut data = info.lock().unwrap();
-                (*data)[i] = Some(value);
+                let mut info = info.lock().unwrap();
+                (*info)[i + 1] = Some(value);
                 Ok::<(), GenericError>(())
             });
         }
@@ -111,9 +103,36 @@ impl<T: Clone + Default + DeserializeOwned + Ord + Send + 'static> AtomicRegiste
                 acks += 1;
             }
         }
-
         let results = info.lock().unwrap().clone();
         Ok(results)
+    }
+
+    pub fn neighbor_urls(&self) -> Vec<Uri> {
+        let neighbors = self.neighbors.clone();
+        neighbors
+            .into_iter()
+            .map(|addr| {
+                let mut parts = addr.into_parts();
+                parts.path_and_query = Some("/register/local".parse().unwrap());
+                Uri::from_parts(parts).unwrap()
+            })
+            .collect()
+    }
+
+    async fn read(&self) -> Result<T, GenericError> {
+        let info = self.communicate(MessageType::Ask).await?;
+        let max = info.into_iter().max().unwrap().unwrap();
+        let local = self.update(&max);
+        self.communicate(MessageType::Announce).await?;
+        Ok(local.value)
+    }
+
+    fn update(&self, other: &LocalValue<T>) -> LocalValue<T> {
+        let mut local = self.local.lock().unwrap();
+        if *other > *local {
+            *local = other.clone()
+        };
+        local.clone()
     }
 }
 
@@ -125,43 +144,27 @@ impl<T: Clone + Debug + Default + DeserializeOwned + Ord + Send + Serialize + 's
     type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
 
     fn call(&mut self, req: Request<Incoming>) -> Self::Future {
-        let local = self.local.clone();
-        let neighbors = self.neighbors.clone();
+        // TODO: Explain this.
+        let me = self.clone();
         match (req.method(), req.uri().path()) {
             // GET requests perform a 'read' on the shared-register.
             (&Method::GET, "/register") => Box::pin(async move {
-                // This inner-block is required for the compiler to understand
-                // that the lock is not required accross the call to .await.
-                // See: https://github.com/rust-lang/rust/issues/104883
-                let local = {
-                    let locked_local = local.lock().unwrap();
-                    locked_local.clone()
-                };
-                let info = Self::communicate(local, neighbors).await?;
-                let max = info.into_iter().max().unwrap().unwrap();
-                let raw_value = serde_json::to_string(&max.value)?;
-                mk_response(raw_value)
+                let value = me.read().await?;
+                mk_response(serde_json::to_value(value)?)
             }),
             // GET requests return this severs local value and associated label
-            (&Method::GET, "/register/local") => Box::pin(async move {
-                let value = serde_json::to_string(&local)?;
-                println!("Responding!"); // TODO: Why doesn't this print?
-                mk_response(value)
-            }),
+            (&Method::GET, "/register/local") => {
+                Box::pin(async move { mk_response(serde_json::to_value(&me.local)?) })
+            }
             // POST requests take another value and label as input, updates
             // this servers local value to be the _greater_ of the two, and
             // returns it, along with the associated label.
             (&Method::POST, "/register/local") => Box::pin(async move {
                 let body = req.collect().await?.aggregate();
                 let other: LocalValue<T> = serde_json::from_reader(body.reader())?;
+                let local = me.update(&other);
 
-                let mut local = local.lock().unwrap();
-                if other > *local {
-                    *local = other
-                };
-
-                let value = serde_json::to_string(&*local)?;
-                mk_response(value)
+                mk_response(serde_json::to_value(&local)?)
             }),
             // Return the 404 Not Found for other routes, and don't increment counter.
             // TODO: Improve this...
