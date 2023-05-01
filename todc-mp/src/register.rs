@@ -13,7 +13,7 @@ use hyper::service::Service;
 use hyper::{Method, Request, Response, Uri};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use serde_json::Value as JSON;
+use serde_json::{json, Value as JSON};
 use tokio::task::JoinSet;
 
 use crate::{get, post, GenericError};
@@ -107,7 +107,7 @@ impl<T: Clone + Debug + Default + DeserializeOwned + Ord + Send + Serialize + 's
         Ok(results)
     }
 
-    pub fn neighbor_urls(&self) -> Vec<Uri> {
+    fn neighbor_urls(&self) -> Vec<Uri> {
         let neighbors = self.neighbors.clone();
         neighbors
             .into_iter()
@@ -134,6 +134,16 @@ impl<T: Clone + Debug + Default + DeserializeOwned + Ord + Send + Serialize + 's
         };
         local.clone()
     }
+
+    async fn write(&self, value: T) -> Result<(), GenericError> {
+        let new = LocalValue {
+            value,
+            label: self.local.lock().unwrap().label + 1,
+        };
+        self.update(&new);
+        self.communicate(MessageType::Announce).await?;
+        Ok(())
+    }
 }
 
 impl<T: Clone + Debug + Default + DeserializeOwned + Ord + Send + Serialize + 'static>
@@ -151,6 +161,13 @@ impl<T: Clone + Debug + Default + DeserializeOwned + Ord + Send + Serialize + 's
             (&Method::GET, "/register") => Box::pin(async move {
                 let value = me.read().await?;
                 mk_response(serde_json::to_value(value)?)
+            }),
+            // POST requests perform a 'write' on the shared-register.
+            (&Method::POST, "/register") => Box::pin(async move {
+                let body = req.collect().await?.aggregate();
+                let value: T = serde_json::from_reader(body.reader())?;
+                me.write(value).await?;
+                mk_response(json!(null))
             }),
             // GET requests return this severs local value and associated label
             (&Method::GET, "/register/local") => {
@@ -192,6 +209,111 @@ mod tests {
             let first = LocalValue { label: 0, value: 0 };
             let second = LocalValue { label: 0, value: 1 };
             assert!(first < second)
+        }
+    }
+
+    mod atomic_register {
+        use super::*;
+
+        mod communicate {
+            use super::*;
+
+            #[tokio::test]
+            async fn includes_own_local_value_in_response() {
+                let register: AtomicRegister<u32> = AtomicRegister::default();
+                let info = register.communicate(MessageType::Ask).await.unwrap();
+
+                let local = register.local.lock().unwrap();
+                assert_eq!(info, vec![Some(local.clone())])
+            }
+        }
+
+        mod neighbor_urls {
+            use super::*;
+
+            #[test]
+            fn appends_local_suffix() {
+                let neighbor = Uri::from_static("http://test.com");
+                let register = AtomicRegister::<u32>::new(vec![neighbor]);
+                let urls = register.neighbor_urls();
+                let url = urls.first().unwrap();
+                assert_eq!(url.host().unwrap(), "test.com");
+                assert_eq!(url.path(), "/register/local");
+            }
+        }
+
+        mod read {
+            use super::*;
+
+            #[tokio::test]
+            async fn returns_value_without_label() {
+                let register: AtomicRegister<u32> = AtomicRegister::default();
+                assert_eq!(0, register.read().await.unwrap())
+            }
+        }
+
+        mod update {
+            use super::*;
+
+            #[test]
+            fn returns_current_local_value() {
+                let register: AtomicRegister<u32> = AtomicRegister::default();
+                let other = LocalValue {
+                    value: 123,
+                    label: 123,
+                };
+                let local = register.update(&other);
+                assert_eq!(other, local);
+            }
+
+            #[test]
+            fn changes_local_value_if_other_label_is_larger() {
+                let register: AtomicRegister<u32> = AtomicRegister::default();
+                register.update(&LocalValue {
+                    value: 123,
+                    label: 123,
+                });
+                let local = register.local.lock().unwrap();
+                assert_eq!(local.value, 123);
+                assert_eq!(local.label, 123);
+            }
+
+            #[test]
+            fn leaves_local_value_alone_other_label_is_smaller() {
+                let register: AtomicRegister<u32> = AtomicRegister::default();
+                // Update local to have non-zero label
+                register.update(&LocalValue {
+                    value: 123,
+                    label: 123,
+                });
+                // Update again with smaller label
+                register.update(&LocalValue { value: 1, label: 1 });
+                let local = register.local.lock().unwrap();
+                assert_eq!(local.value, 123);
+                assert_eq!(local.label, 123);
+            }
+        }
+
+        mod write {
+            use super::*;
+
+            #[tokio::test]
+            async fn updates_local_to_new_value() {
+                let register: AtomicRegister<u32> = AtomicRegister::default();
+                register.write(123).await.unwrap();
+
+                let local = register.local.lock().unwrap();
+                assert_eq!(123, local.value);
+            }
+
+            #[tokio::test]
+            async fn increases_local_label_by_one() {
+                let register: AtomicRegister<u32> = AtomicRegister::default();
+                register.write(123).await.unwrap();
+
+                let local = register.local.lock().unwrap();
+                assert_eq!(1, local.label);
+            }
         }
     }
 }

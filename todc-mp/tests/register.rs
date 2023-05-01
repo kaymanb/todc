@@ -8,7 +8,6 @@ use serde_json::{json, Value as JSON};
 use turmoil::net::TcpListener;
 use turmoil::Builder;
 
-
 use todc_mp::register::AtomicRegister;
 
 mod common;
@@ -150,9 +149,7 @@ mod register {
         #[test]
         fn announces_returned_value_to_other_servers() {
             let mut sim = Builder::new().build();
-            let neighbors1 = vec![
-                Uri::from_static("http://server2:9999"),
-            ];
+            let neighbors1 = vec![Uri::from_static("http://server2:9999")];
             let register1 = AtomicRegister::new(neighbors1);
             sim.host("server1", move || serve(register1.clone()));
 
@@ -169,7 +166,7 @@ mod register {
                 // Perform read operation on server1
                 let url = Uri::from_static("http://server1:9999/register");
                 get(url).await.unwrap();
-                
+
                 // Check the local value of server2
                 let url2 = Uri::from_static("http://server2:9999/register/local");
                 let response = get(url2).await.unwrap();
@@ -187,7 +184,7 @@ mod register {
             let mut sim = Builder::new().build();
             let neighbors1 = vec![
                 Uri::from_static("http://server2:9999"),
-                Uri::from_static("http://server3:9999")
+                Uri::from_static("http://server3:9999"),
             ];
             let register1 = AtomicRegister::new(neighbors1);
             sim.host("server1", move || serve(register1.clone()));
