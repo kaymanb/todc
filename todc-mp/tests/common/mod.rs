@@ -2,12 +2,13 @@ use bytes::Bytes;
 use http_body_util::{combinators::BoxBody, BodyExt, Empty, Full};
 use hyper::body::Incoming;
 use hyper::{Request, Response, Uri};
+use serde_json::Value as JSON;
 use turmoil::net::TcpStream;
 
 // A simple type alias so as to DRY.
 type FetchResult<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
-pub async fn fetch_url(url: Uri) -> FetchResult<Response<Incoming>> {
+pub async fn get(url: Uri) -> FetchResult<Response<Incoming>> {
     let host = url.host().expect("uri has no host");
     let port = url.port_u16().unwrap_or(80);
     let addr = format!("{host}:{port}");
@@ -31,7 +32,7 @@ pub async fn fetch_url(url: Uri) -> FetchResult<Response<Incoming>> {
     Ok(res)
 }
 
-pub async fn post_url(url: Uri, body: String) -> FetchResult<Response<Incoming>> {
+pub async fn post(url: Uri, body: JSON) -> FetchResult<Response<Incoming>> {
     let host = url.host().expect("uri has no host");
     let port = url.port_u16().unwrap_or(80);
     let addr = format!("{host}:{port}");
@@ -62,8 +63,8 @@ fn empty() -> BoxBody<Bytes, hyper::Error> {
         .boxed()
 }
 
-fn full(value: String) -> BoxBody<Bytes, hyper::Error> {
-    Full::<Bytes>::new(Bytes::from(value))
+fn full(value: JSON) -> BoxBody<Bytes, hyper::Error> {
+    Full::<Bytes>::new(Bytes::from(value.to_string()))
         .map_err(|never| match never {})
         .boxed()
 }
