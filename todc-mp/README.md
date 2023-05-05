@@ -2,5 +2,5 @@
 
 Test with 
 ```
-RUSTFLAGS="--cfg turmoil" cargo test
+cargo test --features turmoil
 ```

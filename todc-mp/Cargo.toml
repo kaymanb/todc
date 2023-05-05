@@ -10,9 +10,10 @@ hyper = { version = "1.0.0-rc.3", features = ["full"] }
 serde = { version = "1.0", features = ["derive", "rc"] }
 serde_json = "1.0"
 tokio = { version = "1", features = ["full"] }
+turmoil = { version = "0.5", optional = true }
 
 [dev-dependencies]
 turmoil = "0.5"
 
-[target.'cfg(turmoil)'.dependencies]
-turmoil = "0.5"
+[features]
+turmoil = ["dep:turmoil"]

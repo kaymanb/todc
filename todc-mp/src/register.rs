@@ -13,7 +13,7 @@ use hyper::service::Service;
 use hyper::{Method, Request, Response, Uri};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value as JSON};
+use serde_json::Value as JSON;
 use tokio::task::JoinSet;
 
 use crate::{get, post, GenericError};
@@ -167,7 +167,7 @@ impl<T: Clone + Debug + Default + DeserializeOwned + Ord + Send + Serialize + 's
                 let body = req.collect().await?.aggregate();
                 let value: T = serde_json::from_reader(body.reader())?;
                 me.write(value).await?;
-                mk_response(json!(null))
+                mk_response(JSON::Null)
             }),
             // GET requests return this severs local value and associated label
             (&Method::GET, "/register/local") => {
