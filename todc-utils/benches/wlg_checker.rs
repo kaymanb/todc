@@ -5,7 +5,7 @@ use criterion::{criterion_group, criterion_main, BatchSize, Criterion};
 use todc_utils::linearizability::WLGChecker;
 use todc_utils::specifications::etcd::{history_from_log, EtcdSpecification};
 
-const LOG_FILE: &str = "benches/linearizability/etcd_log_005.log";
+const LOG_FILE: &str = "benches/static/etcd_log_005.log";
 
 fn criterion_benchmark(c: &mut Criterion) {
     let history = history_from_log(LOG_FILE.to_owned());

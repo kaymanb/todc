@@ -1,19 +1,21 @@
 [package]
-name = "todc-sm"
+name = "todc-mem"
 version = "0.1.0"
 edition = "2018"
 
 [dependencies]
 num = "0.4"
+loom = { version = "0.5", optional = true }
 
 [dev-dependencies]
-todc-utils = { path = "../todc-utils" }
 criterion = "0.4"
+todc-utils = { path = "../todc-utils" }
 
 [target.'cfg(loom)'.dependencies]
-loom = "0.5"
 
 [[bench]]
 name = "compare_snapshot_implementations"
 harness = false
 
+[features]
+loom = ["dep:loom"]

@@ -4,13 +4,11 @@ use loom::{sync::Mutex, thread};
 use todc_utils::linearizability::{history::History, WLGChecker};
 use todc_utils::specifications::snapshot::SnapshotSpecification;
 
-use super::{RecordingSnapshot, TimedAction};
-
-const NUM_THREADS: usize = 3;
+use crate::{RecordingSnapshot, TimedAction, NUM_THREADS};
 
 mod lattice_mutex_snapshot {
     use super::*;
-    use todc_sm::snapshot::ar_98::LatticeMutexSnapshot;
+    use todc_mem::snapshot::ar_98::LatticeMutexSnapshot;
 
     type ActionUnderTest = TimedAction<Option<usize>, NUM_THREADS>;
     type SnapshotUnderTest =

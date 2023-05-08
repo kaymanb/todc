@@ -4,13 +4,11 @@ use loom::{sync::Mutex, thread};
 use todc_utils::linearizability::{history::History, WLGChecker};
 use todc_utils::specifications::snapshot::SnapshotSpecification;
 
-use super::{RecordingSnapshot, TimedAction};
-
-const NUM_THREADS: usize = 3;
+use crate::{RecordingSnapshot, TimedAction, NUM_THREADS};
 
 // TODO: Reduce code duplication between these tests...
 mod unbounded_atomic_snapshot {
-    use todc_sm::snapshot::aad_plus_93::UnboundedAtomicSnapshot;
+    use todc_mem::snapshot::aad_plus_93::UnboundedAtomicSnapshot;
 
     use super::*;
 
@@ -60,7 +58,7 @@ mod unbounded_atomic_snapshot {
 
 // TODO: Can probably just remove mutex tests...
 mod unbounded_mutex_snapshot {
-    use todc_sm::snapshot::aad_plus_93::UnboundedMutexSnapshot;
+    use todc_mem::snapshot::aad_plus_93::UnboundedMutexSnapshot;
 
     use super::*;
 
@@ -111,7 +109,7 @@ mod unbounded_mutex_snapshot {
 
 mod bounded_atomic_snapshot {
     use super::*;
-    use todc_sm::snapshot::aad_plus_93::BoundedAtomicSnapshot;
+    use todc_mem::snapshot::aad_plus_93::BoundedAtomicSnapshot;
 
     type ActionUnderTest = TimedAction<u8, NUM_THREADS>;
     type SnapshotUnderTest = RecordingSnapshot<NUM_THREADS, BoundedAtomicSnapshot<NUM_THREADS>>;
@@ -159,7 +157,7 @@ mod bounded_atomic_snapshot {
 
 mod bounded_mutex_snapshot {
     use super::*;
-    use todc_sm::snapshot::aad_plus_93::BoundedMutexSnapshot;
+    use todc_mem::snapshot::aad_plus_93::BoundedMutexSnapshot;
 
     type ActionUnderTest = TimedAction<Option<usize>, NUM_THREADS>;
     type SnapshotUnderTest =

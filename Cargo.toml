@@ -1,7 +1,7 @@
 [workspace]
 members = [
-    "todc-mp",
-    "todc-sm", 
+    "todc-net",
+    "todc-mem", 
     "todc-utils"
 ]
 

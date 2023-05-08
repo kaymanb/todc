@@ -8,10 +8,9 @@ use serde_json::{json, Value as JSON};
 use turmoil::net::TcpListener;
 use turmoil::{Builder, Sim};
 
-use todc_mp::register::AtomicRegister;
+use todc_net::atomic::AtomicRegister;
 
-mod common;
-use common::{get, post};
+use crate::common::{get, post};
 
 const SERVER_PREFIX: &str = "server";
 const PORT: u32 = 9999;
@@ -54,171 +53,167 @@ fn simulate_servers<'a>(n: usize) -> Sim<'a> {
     sim
 }
 
-mod register {
+mod get {
     use super::*;
 
-    mod get {
-        use super::*;
+    #[test]
+    fn responds_with_success() {
+        let mut sim = simulate_servers(2);
+        sim.client("client", async move {
+            let url = Uri::from_static("http://server-0:9999/register");
+            let response = get(url).await.unwrap();
+            assert!(response.status().is_success());
+            Ok(())
+        });
 
-        #[test]
-        fn responds_with_success() {
-            let mut sim = simulate_servers(2);
-            sim.client("client", async move {
-                let url = Uri::from_static("http://server-0:9999/register");
-                let response = get(url).await.unwrap();
-                assert!(response.status().is_success());
-                Ok(())
-            });
-
-            sim.run().unwrap();
-        }
-
-        #[test]
-        fn returns_value_as_json() {
-            let mut sim = simulate_servers(2);
-            sim.client("client", async move {
-                let url = Uri::from_static("http://server-0:9999/register");
-                let response = get(url).await.unwrap();
-                let body = response.collect().await?.aggregate();
-                let body: JSON = serde_json::from_reader(body.reader())?;
-                assert_eq!(body, json!(0));
-                Ok(())
-            });
-
-            sim.run().unwrap();
-        }
-
-        #[test]
-        fn returns_value_from_other_server_with_larger_label() {
-            let mut sim = simulate_servers(2);
-            sim.client("client", async move {
-                // Set local value of server2
-                let url2 = Uri::from_static("http://server-1:9999/register/local");
-                let value = 123;
-                let larger = json!({"value": value, "label": 1});
-                post(url2.clone(), larger).await.unwrap();
-
-                // Perform read operation on server1
-                let url = Uri::from_static("http://server-0:9999/register");
-                let response = get(url).await.unwrap();
-                let body = response.collect().await?.aggregate();
-                let body: JSON = serde_json::from_reader(body.reader())?;
-                assert_eq!(body, json!(value));
-                Ok(())
-            });
-
-            sim.run().unwrap();
-        }
-
-        #[test]
-        fn announces_returned_value_to_other_servers() {
-            let mut sim = simulate_servers(2);
-            sim.client("client", async move {
-                // Set local value of server1
-                let local_url = Uri::from_static("http://server-0:9999/register/local");
-                let value = 123;
-                let larger = json!({"value": value, "label": 1});
-                post(local_url, larger.clone()).await.unwrap();
-
-                // Perform read operation on server1
-                let url = Uri::from_static("http://server-0:9999/register");
-                get(url).await.unwrap();
-
-                // Check the local value of server2
-                let url2 = Uri::from_static("http://server-1:9999/register/local");
-                let response = get(url2).await.unwrap();
-                let body = response.collect().await?.aggregate();
-                let local2: JSON = serde_json::from_reader(body.reader())?;
-                assert!(local2 == larger);
-                Ok(())
-            });
-
-            sim.run().unwrap();
-        }
-
-        #[test]
-        fn responds_even_if_half_of_neighbors_are_offline() {
-            let mut sim = simulate_servers(3);
-            sim.client("client", async move {
-                turmoil::partition("server-0", "server-1");
-
-                let url = Uri::from_static("http://server-0:9999/register");
-                let response = get(url).await.unwrap();
-                let body = response.collect().await?.aggregate();
-                let body: JSON = serde_json::from_reader(body.reader())?;
-                assert_eq!(body, json!(0));
-                Ok(())
-            });
-
-            sim.run().unwrap();
-        }
+        sim.run().unwrap();
     }
 
-    mod post {
-        use super::*;
+    #[test]
+    fn returns_value_as_json() {
+        let mut sim = simulate_servers(2);
+        sim.client("client", async move {
+            let url = Uri::from_static("http://server-0:9999/register");
+            let response = get(url).await.unwrap();
+            let body = response.collect().await?.aggregate();
+            let body: JSON = serde_json::from_reader(body.reader())?;
+            assert_eq!(body, json!(0));
+            Ok(())
+        });
 
-        #[test]
-        fn responds_with_success() {
-            let mut sim = simulate_servers(2);
-            sim.client("client", async move {
-                let url = Uri::from_static("http://server-0:9999/register");
-                let response = post(url, json!(123)).await.unwrap();
-                assert!(response.status().is_success());
-                Ok(())
-            });
+        sim.run().unwrap();
+    }
 
-            sim.run().unwrap();
-        }
+    #[test]
+    fn returns_value_from_other_server_with_larger_label() {
+        let mut sim = simulate_servers(2);
+        sim.client("client", async move {
+            // Set local value of server2
+            let url2 = Uri::from_static("http://server-1:9999/register/local");
+            let value = 123;
+            let larger = json!({"value": value, "label": 1});
+            post(url2.clone(), larger).await.unwrap();
 
-        #[test]
-        fn returns_empty_body() {
-            let mut sim = simulate_servers(2);
-            sim.client("client", async move {
-                let url = Uri::from_static("http://server-0:9999/register");
-                let response = post(url, json!(123)).await.unwrap();
-                let body = response.collect().await?.aggregate();
-                let body: JSON = serde_json::from_reader(body.reader())?;
-                assert_eq!(body, JSON::Null);
-                Ok(())
-            });
+            // Perform read operation on server1
+            let url = Uri::from_static("http://server-0:9999/register");
+            let response = get(url).await.unwrap();
+            let body = response.collect().await?.aggregate();
+            let body: JSON = serde_json::from_reader(body.reader())?;
+            assert_eq!(body, json!(value));
+            Ok(())
+        });
 
-            sim.run().unwrap();
-        }
+        sim.run().unwrap();
+    }
 
-        #[test]
-        fn announces_value_to_neighbors() {
-            let mut sim = simulate_servers(2);
-            sim.client("client", async move {
-                // Write value to register
-                let url = Uri::from_static("http://server-0:9999/register");
-                post(url, json!(123)).await.unwrap();
+    #[test]
+    fn announces_returned_value_to_other_servers() {
+        let mut sim = simulate_servers(2);
+        sim.client("client", async move {
+            // Set local value of server1
+            let local_url = Uri::from_static("http://server-0:9999/register/local");
+            let value = 123;
+            let larger = json!({"value": value, "label": 1});
+            post(local_url, larger.clone()).await.unwrap();
 
-                // Check that value was adopted by neighbor
-                let url = Uri::from_static("http://server-1:9999/register/local");
-                let response = get(url).await.unwrap();
-                let body = response.collect().await?.aggregate();
-                let body: JSON = serde_json::from_reader(body.reader())?;
-                assert_eq!(body, json!({ "label": 1, "value": 123 }));
-                Ok(())
-            });
+            // Perform read operation on server1
+            let url = Uri::from_static("http://server-0:9999/register");
+            get(url).await.unwrap();
 
-            sim.run().unwrap();
-        }
+            // Check the local value of server2
+            let url2 = Uri::from_static("http://server-1:9999/register/local");
+            let response = get(url2).await.unwrap();
+            let body = response.collect().await?.aggregate();
+            let local2: JSON = serde_json::from_reader(body.reader())?;
+            assert!(local2 == larger);
+            Ok(())
+        });
 
-        #[test]
-        fn responds_even_if_half_of_neighbors_are_offline() {
-            let mut sim = simulate_servers(3);
-            sim.client("client", async move {
-                turmoil::partition("server-0", "server-1");
+        sim.run().unwrap();
+    }
 
-                let url = Uri::from_static("http://server-0:9999/register");
-                let response = post(url, json!(123)).await.unwrap();
-                assert!(response.status().is_success());
-                Ok(())
-            });
+    #[test]
+    fn responds_even_if_half_of_neighbors_are_offline() {
+        let mut sim = simulate_servers(3);
+        sim.client("client", async move {
+            turmoil::partition("server-0", "server-1");
 
-            sim.run().unwrap();
-        }
+            let url = Uri::from_static("http://server-0:9999/register");
+            let response = get(url).await.unwrap();
+            let body = response.collect().await?.aggregate();
+            let body: JSON = serde_json::from_reader(body.reader())?;
+            assert_eq!(body, json!(0));
+            Ok(())
+        });
+
+        sim.run().unwrap();
+    }
+}
+
+mod post {
+    use super::*;
+
+    #[test]
+    fn responds_with_success() {
+        let mut sim = simulate_servers(2);
+        sim.client("client", async move {
+            let url = Uri::from_static("http://server-0:9999/register");
+            let response = post(url, json!(123)).await.unwrap();
+            assert!(response.status().is_success());
+            Ok(())
+        });
+
+        sim.run().unwrap();
+    }
+
+    #[test]
+    fn returns_empty_body() {
+        let mut sim = simulate_servers(2);
+        sim.client("client", async move {
+            let url = Uri::from_static("http://server-0:9999/register");
+            let response = post(url, json!(123)).await.unwrap();
+            let body = response.collect().await?.aggregate();
+            let body: JSON = serde_json::from_reader(body.reader())?;
+            assert_eq!(body, JSON::Null);
+            Ok(())
+        });
+
+        sim.run().unwrap();
+    }
+
+    #[test]
+    fn announces_value_to_neighbors() {
+        let mut sim = simulate_servers(2);
+        sim.client("client", async move {
+            // Write value to register
+            let url = Uri::from_static("http://server-0:9999/register");
+            post(url, json!(123)).await.unwrap();
+
+            // Check that value was adopted by neighbor
+            let url = Uri::from_static("http://server-1:9999/register/local");
+            let response = get(url).await.unwrap();
+            let body = response.collect().await?.aggregate();
+            let body: JSON = serde_json::from_reader(body.reader())?;
+            assert_eq!(body, json!({ "label": 1, "value": 123 }));
+            Ok(())
+        });
+
+        sim.run().unwrap();
+    }
+
+    #[test]
+    fn responds_even_if_half_of_neighbors_are_offline() {
+        let mut sim = simulate_servers(3);
+        sim.client("client", async move {
+            turmoil::partition("server-0", "server-1");
+
+            let url = Uri::from_static("http://server-0:9999/register");
+            let response = post(url, json!(123)).await.unwrap();
+            assert!(response.status().is_success());
+            Ok(())
+        });
+
+        sim.run().unwrap();
     }
 }
 

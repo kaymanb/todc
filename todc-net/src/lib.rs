@@ -7,8 +7,8 @@ use serde_json::{json, Value as JSON};
 
 use crate::net::TcpStream;
 
+pub mod atomic;
 pub mod net;
-pub mod register;
 
 type GenericError = Box<dyn std::error::Error + Send + Sync>;
 type ResponseResult = Result<Response<Incoming>, GenericError>;

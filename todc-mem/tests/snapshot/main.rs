@@ -1,14 +1,13 @@
 use std::time::Instant;
 
-use todc_sm::snapshot::Snapshot;
+use todc_mem::snapshot::Snapshot;
 use todc_utils::linearizability::history::Action;
 use todc_utils::specifications::snapshot::{ProcessID, SnapshotOperation};
 
-#[cfg(loom)]
 mod aad_plus_93;
-
-#[cfg(loom)]
 mod ar_98;
+
+const NUM_THREADS: usize = 3;
 
 pub struct TimedAction<T, const N: usize> {
     process: ProcessID,
