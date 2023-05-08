@@ -3,7 +3,7 @@ use std::net::{IpAddr, Ipv4Addr};
 use bytes::Buf;
 use http_body_util::BodyExt;
 use hyper::server::conn::http1;
-use hyper::Uri;
+use hyper::{StatusCode, Uri};
 use serde_json::{json, Value as JSON};
 use turmoil::net::TcpListener;
 use turmoil::{Builder, Sim};
@@ -53,6 +53,71 @@ fn simulate_servers<'a>(n: usize) -> Sim<'a> {
     sim
 }
 
+/// Test that if two writes happen concurrently, and one is delayed
+/// long enough for the other to be succefully applied, then the former
+/// is not also applied to the register when it completes.
+///
+/// The delayed write cannot be applied because an individual server cannot
+/// tell if the write was _actually_ delayed, or if it is just receiving very
+/// old messages. If it is the latter, and the write has already been applied,
+/// then applying it again would mean that future reads may return an
+/// incorrect value.
+#[test]
+#[ignore] // TODO: Finish writing this...
+fn delayed_write_is_not_applied() {
+    let mut sim = simulate_servers(3);
+    sim.client("client", async move {
+        let first = json!(10);
+        let second = json!(20);
+
+        // Initially, server-0 is isolated due to a network partition.
+        turmoil::partition("server-0", "server-1");
+        turmoil::partition("server-0", "server-2");
+
+        // A first write is performed on server-0, which will initially be delayed
+        // due to the network partition, but eventually complete.
+        let handle = tokio::task::spawn(async move {
+            let url = Uri::from_static("http://server-0:9999/register");
+            let response = post(url, first).await.unwrap();
+            assert!(response.status().is_success());
+        });
+
+        // Assert that the first write has not yet been applied.
+        let url = Uri::from_static("http://server-1:9999/register");
+        let response = get(url).await.unwrap();
+        let body = response.collect().await?.aggregate();
+        let value: JSON = serde_json::from_reader(body.reader())?;
+        assert_eq!(value, json!(0));
+
+        // A second write is performed, and will be applied immiediately,
+        // because server-1 is only partially-affected by the partition.
+        let url = Uri::from_static("http://server-1:9999/register");
+        post(url, second.clone()).await.unwrap();
+
+        // Assert that second write was applied.
+        let url = Uri::from_static("http://server-1:9999/register");
+        let response = get(url).await.unwrap();
+        let body = response.collect().await?.aggregate();
+        let value: JSON = serde_json::from_reader(body.reader())?;
+        assert_eq!(value, second);
+
+        // Resolve the network partition, and wait for the first
+        // write to complete.
+        turmoil::repair("server-0", "server-1");
+        turmoil::repair("server-0", "server-2");
+        handle.await?;
+
+        // Assert that the value from the first write was not applied.
+        let url = Uri::from_static("http://server-2:9999/register");
+        let response = get(url).await.unwrap();
+        let body = response.collect().await?.aggregate();
+        let value: JSON = serde_json::from_reader(body.reader())?;
+        assert_eq!(value, second);
+        Ok(())
+    });
+    sim.run().unwrap();
+}
+
 mod get {
     use super::*;
 
@@ -65,7 +130,21 @@ mod get {
             assert!(response.status().is_success());
             Ok(())
         });
+        sim.run().unwrap();
+    }
 
+    #[test]
+    #[ignore] // TODO: Finish writing this...
+    fn responds_with_timeout_if_network_is_partitioned() {
+        let mut sim = simulate_servers(2);
+        sim.client("client", async move {
+            turmoil::partition("server-0", "server-1");
+
+            let url = Uri::from_static("http://server-0:9999/register");
+            let res = get(url).await.unwrap();
+            assert_eq!(StatusCode::REQUEST_TIMEOUT, res.status());
+            Ok(())
+        });
         sim.run().unwrap();
     }
 
@@ -80,7 +159,6 @@ mod get {
             assert_eq!(body, json!(0));
             Ok(())
         });
-
         sim.run().unwrap();
     }
 
@@ -102,7 +180,6 @@ mod get {
             assert_eq!(body, json!(value));
             Ok(())
         });
-
         sim.run().unwrap();
     }
 
@@ -128,7 +205,6 @@ mod get {
             assert!(local2 == larger);
             Ok(())
         });
-
         sim.run().unwrap();
     }
 
@@ -145,7 +221,6 @@ mod get {
             assert_eq!(body, json!(0));
             Ok(())
         });
-
         sim.run().unwrap();
     }
 }
@@ -162,7 +237,6 @@ mod post {
             assert!(response.status().is_success());
             Ok(())
         });
-
         sim.run().unwrap();
     }
 
@@ -177,7 +251,6 @@ mod post {
             assert_eq!(body, JSON::Null);
             Ok(())
         });
-
         sim.run().unwrap();
     }
 
@@ -197,7 +270,6 @@ mod post {
             assert_eq!(body, json!({ "label": 1, "value": 123 }));
             Ok(())
         });
-
         sim.run().unwrap();
     }
 
@@ -212,7 +284,6 @@ mod post {
             assert!(response.status().is_success());
             Ok(())
         });
-
         sim.run().unwrap();
     }
 }
@@ -232,7 +303,6 @@ mod local {
                 assert!(response.status().is_success());
                 Ok(())
             });
-
             sim.run().unwrap();
         }
 
@@ -247,7 +317,6 @@ mod local {
                 assert_eq!(body, json!({"value": 0, "label": 0}));
                 Ok(())
             });
-
             sim.run().unwrap();
         }
     }
@@ -265,7 +334,6 @@ mod local {
                 assert!(response.status().is_success());
                 Ok(())
             });
-
             sim.run().unwrap();
         }
 
@@ -282,7 +350,6 @@ mod local {
                 assert_eq!(body, larger);
                 Ok(())
             });
-
             sim.run().unwrap();
         }
 
@@ -299,7 +366,6 @@ mod local {
                 assert_eq!(body, larger);
                 Ok(())
             });
-
             sim.run().unwrap();
         }
 
@@ -318,7 +384,6 @@ mod local {
                 assert_eq!(body, larger);
                 Ok(())
             });
-
             sim.run().unwrap();
         }
 
@@ -342,7 +407,6 @@ mod local {
                 assert_eq!(body, larger);
                 Ok(())
             });
-
             sim.run().unwrap();
         }
     }
