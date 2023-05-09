@@ -3,7 +3,7 @@ use std::net::{IpAddr, Ipv4Addr};
 use bytes::Buf;
 use http_body_util::BodyExt;
 use hyper::server::conn::http1;
-use hyper::{StatusCode, Uri};
+use hyper::Uri;
 use serde_json::{json, Value as JSON};
 use turmoil::net::TcpListener;
 use turmoil::{Builder, Sim};
@@ -63,19 +63,17 @@ fn simulate_servers<'a>(n: usize) -> Sim<'a> {
 /// then applying it again would mean that future reads may return an
 /// incorrect value.
 #[test]
-#[ignore] // TODO: Finish writing this...
 fn delayed_write_is_not_applied() {
     let mut sim = simulate_servers(3);
     sim.client("client", async move {
         let first = json!(10);
         let second = json!(20);
 
-        // Initially, server-0 is isolated due to a network partition.
-        turmoil::partition("server-0", "server-1");
-        turmoil::partition("server-0", "server-2");
+        turmoil::hold("server-0", "server-1");
+        turmoil::hold("server-0", "server-2");
 
         // A first write is performed on server-0, which will initially be delayed
-        // due to the network partition, but eventually complete.
+        // due to the network latency, but eventually complete.
         let handle = tokio::task::spawn(async move {
             let url = Uri::from_static("http://server-0:9999/register");
             let response = post(url, first).await.unwrap();
@@ -90,7 +88,7 @@ fn delayed_write_is_not_applied() {
         assert_eq!(value, json!(0));
 
         // A second write is performed, and will be applied immiediately,
-        // because server-1 is only partially-affected by the partition.
+        // because server-1 is only partially-affected by the hold.
         let url = Uri::from_static("http://server-1:9999/register");
         post(url, second.clone()).await.unwrap();
 
@@ -101,14 +99,13 @@ fn delayed_write_is_not_applied() {
         let value: JSON = serde_json::from_reader(body.reader())?;
         assert_eq!(value, second);
 
-        // Resolve the network partition, and wait for the first
-        // write to complete.
-        turmoil::repair("server-0", "server-1");
-        turmoil::repair("server-0", "server-2");
+        // Release messages, and wait for the first write to complete.
+        turmoil::release("server-0", "server-1");
+        turmoil::release("server-0", "server-2");
         handle.await?;
 
         // Assert that the value from the first write was not applied.
-        let url = Uri::from_static("http://server-2:9999/register");
+        let url = Uri::from_static("http://server-1:9999/register");
         let response = get(url).await.unwrap();
         let body = response.collect().await?.aggregate();
         let value: JSON = serde_json::from_reader(body.reader())?;
@@ -124,25 +121,11 @@ mod get {
     #[test]
     fn responds_with_success() {
         let mut sim = simulate_servers(2);
+
         sim.client("client", async move {
             let url = Uri::from_static("http://server-0:9999/register");
             let response = get(url).await.unwrap();
             assert!(response.status().is_success());
-            Ok(())
-        });
-        sim.run().unwrap();
-    }
-
-    #[test]
-    #[ignore] // TODO: Finish writing this...
-    fn responds_with_timeout_if_network_is_partitioned() {
-        let mut sim = simulate_servers(2);
-        sim.client("client", async move {
-            turmoil::partition("server-0", "server-1");
-
-            let url = Uri::from_static("http://server-0:9999/register");
-            let res = get(url).await.unwrap();
-            assert_eq!(StatusCode::REQUEST_TIMEOUT, res.status());
             Ok(())
         });
         sim.run().unwrap();
@@ -212,7 +195,7 @@ mod get {
     fn responds_even_if_half_of_neighbors_are_offline() {
         let mut sim = simulate_servers(3);
         sim.client("client", async move {
-            turmoil::partition("server-0", "server-1");
+            turmoil::hold("server-0", "server-1");
 
             let url = Uri::from_static("http://server-0:9999/register");
             let response = get(url).await.unwrap();
@@ -277,7 +260,7 @@ mod post {
     fn responds_even_if_half_of_neighbors_are_offline() {
         let mut sim = simulate_servers(3);
         sim.client("client", async move {
-            turmoil::partition("server-0", "server-1");
+            turmoil::hold("server-0", "server-1");
 
             let url = Uri::from_static("http://server-0:9999/register");
             let response = post(url, json!(123)).await.unwrap();

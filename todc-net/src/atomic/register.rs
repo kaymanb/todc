@@ -75,7 +75,6 @@ impl<T: Clone + Debug + Default + DeserializeOwned + Ord + Send + Serialize + 's
 
         let mut handles = JoinSet::new();
         let info = Arc::new(Mutex::new(results));
-        let majority = (self.neighbors.len() as f32 / 2.0).ceil() as u32;
 
         for (i, url) in self.neighbor_urls().into_iter().enumerate() {
             let info = info.clone();
@@ -97,10 +96,11 @@ impl<T: Clone + Debug + Default + DeserializeOwned + Ord + Send + Serialize + 's
             });
         }
 
-        let mut acks = 0;
-        while acks < majority {
+        let mut acks = 1_f32;
+        let minority = (self.neighbors.len() as f32 + 1_f32) / 2_f32;
+        while acks <= minority {
             if handles.join_next().await.is_some() {
-                acks += 1;
+                acks += 1_f32;
             }
         }
         let results = info.lock().unwrap().clone();
