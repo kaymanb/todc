@@ -34,6 +34,7 @@ async fn serve(register: AtomicRegister<u32>) -> Result<(), Box<dyn std::error::
 
 fn simulate_servers<'a>(n: usize) -> Sim<'a> {
     let mut sim = Builder::new().build();
+
     let neighbors: Vec<Uri> = (0..n)
         .map(|i| {
             format!("http://{SERVER_PREFIX}-{i}:{PORT}")
@@ -49,10 +50,30 @@ fn simulate_servers<'a>(n: usize) -> Sim<'a> {
         let name = format!("{SERVER_PREFIX}-{i}");
         sim.host(name, move || serve(register.clone()));
     }
-
     sim
 }
 
+#[test]
+#[ignore] // TODO: Currently fails at weird times. Turn this into a proper test...
+fn random_reads_and_writes_with_random_failures_are_linearizable() {
+    let mut sim = simulate_servers(2);
+    sim.set_fail_rate(0.5);
+        
+    // sim.set_link_fail_rate("server-1", "server-0", 0.0);
+
+    sim.client("client", async move {
+        let url = Uri::from_static("http://server-0:9999/register");
+        let response = get(url).await.unwrap();
+        assert!(response.status().is_success());
+        Ok(())
+    });
+
+    sim.set_link_fail_rate("client", "server-0", 0.0);
+
+    sim.run().unwrap();
+}
+
+#[test]
 /// Test that if two writes happen concurrently, and one is delayed
 /// long enough for the other to be succefully applied, then the former
 /// is not also applied to the register when it completes.
@@ -62,7 +83,6 @@ fn simulate_servers<'a>(n: usize) -> Sim<'a> {
 /// old messages. If it is the latter, and the write has already been applied,
 /// then applying it again would mean that future reads may return an
 /// incorrect value.
-#[test]
 fn delayed_write_is_not_applied() {
     let mut sim = simulate_servers(3);
     sim.client("client", async move {
@@ -79,6 +99,7 @@ fn delayed_write_is_not_applied() {
             let response = post(url, first).await.unwrap();
             assert!(response.status().is_success());
         });
+        tokio::task::yield_now().await;
 
         // Assert that the first write has not yet been applied.
         let url = Uri::from_static("http://server-1:9999/register");

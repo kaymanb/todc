@@ -23,9 +23,9 @@ pub(crate) async fn post(url: Uri, body: JSON) -> ResponseResult {
 
 async fn make_request(url: Uri, method: Method, body: JSON) -> ResponseResult {
     let authority = url.authority().ok_or("Invalid URL")?.as_str();
-    // TODO: Do we need to clone `authority` here?
     let stream = TcpStream::connect(authority).await?;
     let (mut sender, conn) = hyper::client::conn::http1::handshake(stream).await?;
+
     tokio::task::spawn(async move {
         if let Err(err) = conn.await {
             println!("Connection failed: {err}");

@@ -89,7 +89,6 @@ impl<T: Clone + Debug + Default + DeserializeOwned + Ord + Send + Serialize + 's
                 };
                 let body = res.collect().await?.aggregate();
                 let value: LocalValue<T> = serde_json::from_reader(body.reader())?;
-
                 let mut info = info.lock().unwrap();
                 (*info)[i + 1] = Some(value);
                 Ok::<(), GenericError>(())
