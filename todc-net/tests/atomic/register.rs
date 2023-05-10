@@ -4,6 +4,8 @@ use bytes::Buf;
 use http_body_util::BodyExt;
 use hyper::server::conn::http1;
 use hyper::Uri;
+use rand::thread_rng; 
+use rand::seq::IteratorRandom;
 use serde_json::{json, Value as JSON};
 use turmoil::net::TcpListener;
 use turmoil::{Builder, Sim};
@@ -52,14 +54,37 @@ fn simulate_servers<'a>(n: usize) -> Sim<'a> {
     }
     sim
 }
+ 
 
 #[test]
 #[ignore] // TODO: Currently fails at weird times. Turn this into a proper test...
 fn random_reads_and_writes_with_random_failures_are_linearizable() {
-    let mut sim = simulate_servers(2);
-    sim.set_fail_rate(0.5);
-        
-    // sim.set_link_fail_rate("server-1", "server-0", 0.0);
+    const NUM_SERVERS: usize = 3;
+    const FAILURE_RATE: f64 = 1.0;
+
+    // Simulate a network where only a random majority of servers are correct.
+    let mut sim = simulate_servers(NUM_SERVERS);
+    sim.set_fail_rate(FAILURE_RATE); // TODO: Why do we have to set this?
+
+    let servers: Vec<String> = (0..NUM_SERVERS)
+        .map(|i| format!("{SERVER_PREFIX}-{i}"))
+        .collect();
+    
+    let mut rng = thread_rng();
+    let majority = ((NUM_SERVERS as f32 / 2.0).floor() + 1.0) as usize;
+    let correct_servers = servers.clone();
+    let correct_servers = correct_servers.iter().choose_multiple(&mut rng, majority);
+    
+    println!("{correct_servers:?}");
+
+    // TODO: This needs to change...
+    for (correct, server) in correct_servers.into_iter().zip(servers.into_iter()) {
+        if *correct == server { continue };
+        let a = correct.clone();
+        let b = server.clone();
+        sim.set_link_fail_rate(a, b, 0.0);
+
+    }
 
     sim.client("client", async move {
         let url = Uri::from_static("http://server-0:9999/register");
@@ -67,7 +92,6 @@ fn random_reads_and_writes_with_random_failures_are_linearizable() {
         assert!(response.status().is_success());
         Ok(())
     });
-
     sim.set_link_fail_rate("client", "server-0", 0.0);
 
     sim.run().unwrap();
