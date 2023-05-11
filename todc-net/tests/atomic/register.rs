@@ -4,8 +4,8 @@ use bytes::Buf;
 use http_body_util::BodyExt;
 use hyper::server::conn::http1;
 use hyper::Uri;
-use rand::thread_rng; 
 use rand::seq::IteratorRandom;
+use rand::thread_rng;
 use serde_json::{json, Value as JSON};
 use turmoil::net::TcpListener;
 use turmoil::{Builder, Sim};
@@ -54,45 +54,59 @@ fn simulate_servers<'a>(n: usize) -> Sim<'a> {
     }
     sim
 }
- 
 
 #[test]
-#[ignore] // TODO: Currently fails at weird times. Turn this into a proper test...
 fn random_reads_and_writes_with_random_failures_are_linearizable() {
-    const NUM_SERVERS: usize = 3;
+    const NUM_SERVERS: usize = 5;
+    const NUM_CLIENTS: usize = 2;
     const FAILURE_RATE: f64 = 1.0;
 
-    // Simulate a network where only a random majority of servers are correct.
+    // Simulate a network where a random minority of servers
+    // fail with non-zero probability.
     let mut sim = simulate_servers(NUM_SERVERS);
-    sim.set_fail_rate(FAILURE_RATE); // TODO: Why do we have to set this?
-
     let servers: Vec<String> = (0..NUM_SERVERS)
         .map(|i| format!("{SERVER_PREFIX}-{i}"))
         .collect();
-    
+
     let mut rng = thread_rng();
-    let majority = ((NUM_SERVERS as f32 / 2.0).floor() + 1.0) as usize;
-    let correct_servers = servers.clone();
-    let correct_servers = correct_servers.iter().choose_multiple(&mut rng, majority);
-    
-    println!("{correct_servers:?}");
+    let minority = ((NUM_SERVERS as f32 / 2.0).ceil() - 1.0) as usize;
 
-    // TODO: This needs to change...
-    for (correct, server) in correct_servers.into_iter().zip(servers.into_iter()) {
-        if *correct == server { continue };
-        let a = correct.clone();
-        let b = server.clone();
-        sim.set_link_fail_rate(a, b, 0.0);
+    let faulty_servers: Vec<String> = servers
+        .clone()
+        .into_iter()
+        .choose_multiple(&mut rng, minority);
+    let correct_servers: Vec<String> = servers
+        .clone()
+        .into_iter()
+        .filter(|s| !faulty_servers.contains(s))
+        .collect();
 
+    // TODO: Get better at ownership and avoid these clones...
+    for faulty in faulty_servers {
+        for server in servers.clone() {
+            if faulty == server {
+                continue;
+            };
+            let a = faulty.clone();
+            let b = server.clone();
+            sim.set_link_fail_rate(a, b, FAILURE_RATE);
+        }
     }
 
-    sim.client("client", async move {
-        let url = Uri::from_static("http://server-0:9999/register");
-        let response = get(url).await.unwrap();
-        assert!(response.status().is_success());
-        Ok(())
-    });
-    sim.set_link_fail_rate("client", "server-0", 0.0);
+    // Simulate clients that submit requests to correct servers.
+    assert!(NUM_CLIENTS <= correct_servers.len());
+    for i in 0..NUM_CLIENTS {
+        let client_name = format!("client-{i}");
+        let server_name = correct_servers.iter().choose(&mut rng).unwrap();
+        let url: Uri = format!("http://{server_name}:9999/register")
+            .parse()
+            .unwrap();
+        sim.client(client_name, async move {
+            let response = get(url).await.unwrap();
+            assert!(response.status().is_success());
+            Ok(())
+        });
+    }
 
     sim.run().unwrap();
 }
