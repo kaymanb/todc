@@ -168,6 +168,7 @@ impl Specification for EtcdSpecification {
                 _ => panic!("Cannot apply read that has not succeeded or failed"),
             },
             Write(status, value) => match status {
+                // TODO: Explain this...
                 Invoke => panic!("Cannot apply write that has only been invoked"),
                 Okay => (true, Some(*value)),
                 Fail => (true, *state),

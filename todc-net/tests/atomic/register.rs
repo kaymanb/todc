@@ -1,18 +1,25 @@
 use std::net::{IpAddr, Ipv4Addr};
+use std::sync::{Arc, Mutex};
 
 use bytes::Buf;
 use http_body_util::BodyExt;
 use hyper::server::conn::http1;
 use hyper::Uri;
 use rand::seq::IteratorRandom;
-use rand::thread_rng;
+use rand::{thread_rng, Rng};
 use serde_json::{json, Value as JSON};
 use turmoil::net::TcpListener;
 use turmoil::{Builder, Sim};
 
 use todc_net::atomic::AtomicRegister;
+use todc_utils::linearizability::history::{Action, History};
+use todc_utils::linearizability::WLGChecker;
+use todc_utils::specifications::register::{RegisterOperation, RegisterSpecification};
 
+use super::TimedAction;
 use crate::common::{get, post};
+
+use RegisterOperation::{Read, Write};
 
 const SERVER_PREFIX: &str = "server";
 const PORT: u32 = 9999;
@@ -56,9 +63,11 @@ fn simulate_servers<'a>(n: usize) -> Sim<'a> {
 }
 
 #[test]
+/// TODO
 fn random_reads_and_writes_with_random_failures_are_linearizable() {
-    const NUM_SERVERS: usize = 5;
     const NUM_CLIENTS: usize = 2;
+    const NUM_SERVERS: usize = 5;
+    const NUM_REQUESTS: usize = 10;
     const FAILURE_RATE: f64 = 1.0;
 
     // Simulate a network where a random minority of servers
@@ -93,6 +102,9 @@ fn random_reads_and_writes_with_random_failures_are_linearizable() {
         }
     }
 
+    let actions: Arc<Mutex<Vec<TimedAction<RegisterOperation<u32>>>>> =
+        Arc::new(Mutex::new(vec![]));
+
     // Simulate clients that submit requests to correct servers.
     assert!(NUM_CLIENTS <= correct_servers.len());
     for i in 0..NUM_CLIENTS {
@@ -101,14 +113,51 @@ fn random_reads_and_writes_with_random_failures_are_linearizable() {
         let url: Uri = format!("http://{server_name}:9999/register")
             .parse()
             .unwrap();
+
+        let mut rng = rng.clone();
+        let actions = actions.clone();
         sim.client(client_name, async move {
-            let response = get(url).await.unwrap();
-            assert!(response.status().is_success());
+            let value = 0;
+            for _ in 0..NUM_REQUESTS {
+                let should_write: bool = rng.gen();
+                // TODO: This should be in a RecordingClient
+                let (call_action, rsp_action) = if should_write {
+                    let call_action = TimedAction::new(i, Action::Call(Write(value)));
+                    let response = post(url.clone(), json!(value)).await.unwrap();
+                    assert!(response.status().is_success());
+                    let rsp_action = TimedAction::new(i, Action::Response(Write(value)));
+                    (call_action, rsp_action)
+                } else {
+                    let call_action = TimedAction::new(i, Action::Call(Read(None)));
+                    let response = get(url.clone()).await.unwrap();
+                    assert!(response.status().is_success());
+                    let body = response.collect().await?.aggregate();
+                    let value: u32 = serde_json::from_reader(body.reader())?;
+                    let rsp_action = TimedAction::new(i, Action::Response(Read(Some(value))));
+                    (call_action, rsp_action)
+                };
+                let mut actions = actions.lock().unwrap();
+                actions.push(call_action);
+                actions.push(rsp_action);
+            }
             Ok(())
         });
     }
 
     sim.run().unwrap();
+
+    let actions = &mut *actions.lock().unwrap();
+    actions.sort_by(|a, b| a.happened_at.cmp(&b.happened_at));
+    let history = History::from_actions(
+        actions
+            .iter()
+            .map(|ta| (ta.process, ta.action.clone()))
+            .collect(),
+    );
+    assert!(WLGChecker::is_linearizable(
+        RegisterSpecification::new(),
+        history
+    ));
 }
 
 #[test]
