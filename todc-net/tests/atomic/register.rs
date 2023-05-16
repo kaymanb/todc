@@ -1,25 +1,17 @@
 use std::net::{IpAddr, Ipv4Addr};
-use std::sync::{Arc, Mutex};
 
 use bytes::Buf;
 use http_body_util::BodyExt;
 use hyper::server::conn::http1;
 use hyper::Uri;
-use rand::seq::IteratorRandom;
-use rand::{thread_rng, Rng};
 use serde_json::{json, Value as JSON};
+use todc_net::atomic::AtomicRegister;
 use turmoil::net::TcpListener;
 use turmoil::{Builder, Sim};
 
-use todc_net::atomic::AtomicRegister;
-use todc_utils::linearizability::history::{Action, History};
-use todc_utils::linearizability::WLGChecker;
-use todc_utils::specifications::register::{RegisterOperation, RegisterSpecification};
-
-use super::TimedAction;
 use crate::common::{get, post};
 
-use RegisterOperation::{Read, Write};
+mod linearizability;
 
 const SERVER_PREFIX: &str = "server";
 const PORT: u32 = 9999;
@@ -60,104 +52,6 @@ fn simulate_servers<'a>(n: usize) -> Sim<'a> {
         sim.host(name, move || serve(register.clone()));
     }
     sim
-}
-
-#[test]
-/// TODO
-fn random_reads_and_writes_with_random_failures_are_linearizable() {
-    const NUM_CLIENTS: usize = 2;
-    const NUM_SERVERS: usize = 5;
-    const NUM_REQUESTS: usize = 10;
-    const FAILURE_RATE: f64 = 1.0;
-
-    // Simulate a network where a random minority of servers
-    // fail with non-zero probability.
-    let mut sim = simulate_servers(NUM_SERVERS);
-    let servers: Vec<String> = (0..NUM_SERVERS)
-        .map(|i| format!("{SERVER_PREFIX}-{i}"))
-        .collect();
-
-    let mut rng = thread_rng();
-    let minority = ((NUM_SERVERS as f32 / 2.0).ceil() - 1.0) as usize;
-
-    let faulty_servers: Vec<String> = servers
-        .clone()
-        .into_iter()
-        .choose_multiple(&mut rng, minority);
-    let correct_servers: Vec<String> = servers
-        .clone()
-        .into_iter()
-        .filter(|s| !faulty_servers.contains(s))
-        .collect();
-
-    // TODO: Get better at ownership and avoid these clones...
-    for faulty in faulty_servers {
-        for server in servers.clone() {
-            if faulty == server {
-                continue;
-            };
-            let a = faulty.clone();
-            let b = server.clone();
-            sim.set_link_fail_rate(a, b, FAILURE_RATE);
-        }
-    }
-
-    let actions: Arc<Mutex<Vec<TimedAction<RegisterOperation<u32>>>>> =
-        Arc::new(Mutex::new(vec![]));
-
-    // Simulate clients that submit requests to correct servers.
-    assert!(NUM_CLIENTS <= correct_servers.len());
-    for i in 0..NUM_CLIENTS {
-        let client_name = format!("client-{i}");
-        let server_name = correct_servers.iter().choose(&mut rng).unwrap();
-        let url: Uri = format!("http://{server_name}:9999/register")
-            .parse()
-            .unwrap();
-
-        let mut rng = rng.clone();
-        let actions = actions.clone();
-        sim.client(client_name, async move {
-            let value = 0;
-            for _ in 0..NUM_REQUESTS {
-                let should_write: bool = rng.gen();
-                // TODO: This should be in a RecordingClient
-                let (call_action, rsp_action) = if should_write {
-                    let call_action = TimedAction::new(i, Action::Call(Write(value)));
-                    let response = post(url.clone(), json!(value)).await.unwrap();
-                    assert!(response.status().is_success());
-                    let rsp_action = TimedAction::new(i, Action::Response(Write(value)));
-                    (call_action, rsp_action)
-                } else {
-                    let call_action = TimedAction::new(i, Action::Call(Read(None)));
-                    let response = get(url.clone()).await.unwrap();
-                    assert!(response.status().is_success());
-                    let body = response.collect().await?.aggregate();
-                    let value: u32 = serde_json::from_reader(body.reader())?;
-                    let rsp_action = TimedAction::new(i, Action::Response(Read(Some(value))));
-                    (call_action, rsp_action)
-                };
-                let mut actions = actions.lock().unwrap();
-                actions.push(call_action);
-                actions.push(rsp_action);
-            }
-            Ok(())
-        });
-    }
-
-    sim.run().unwrap();
-
-    let actions = &mut *actions.lock().unwrap();
-    actions.sort_by(|a, b| a.happened_at.cmp(&b.happened_at));
-    let history = History::from_actions(
-        actions
-            .iter()
-            .map(|ta| (ta.process, ta.action.clone()))
-            .collect(),
-    );
-    assert!(WLGChecker::is_linearizable(
-        RegisterSpecification::new(),
-        history
-    ));
 }
 
 #[test]
