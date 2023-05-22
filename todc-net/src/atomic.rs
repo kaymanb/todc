@@ -1,3 +1,1 @@
-mod register;
-
-pub use register::AtomicRegister;
+pub mod register;

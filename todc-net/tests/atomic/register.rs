@@ -5,9 +5,10 @@ use http_body_util::BodyExt;
 use hyper::server::conn::http1;
 use hyper::Uri;
 use serde_json::{json, Value as JSON};
-use todc_net::atomic::AtomicRegister;
 use turmoil::net::TcpListener;
 use turmoil::{Builder, Sim};
+
+use todc_net::atomic::register::abd_95::AtomicRegister;
 
 use crate::common::{get, post};
 
