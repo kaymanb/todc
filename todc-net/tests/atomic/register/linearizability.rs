@@ -45,7 +45,8 @@ impl<T> TimedAction<T> {
 type RecordedAction<T> = TimedAction<RegisterOperation<T>>;
 type RecordedResult<T> = Result<(RecordedAction<T>, RecordedAction<T>), Box<dyn Error>>;
 
-// TODO
+// A Register client that records call and response information about the
+// operations that it performs.
 struct RecordingRegisterClient<T> {
     process: ProcessID,
     rng: ThreadRng,
@@ -107,11 +108,13 @@ where
     }
 }
 
+/// Asserts that in a network where a random minority of servers are faulty, a
+/// random sequence of reads and writes by correct clients will result in a
+/// linearizable history.
 #[test]
-/// TODO
 fn random_reads_and_writes_with_random_failures() {
     const NUM_CLIENTS: usize = 5;
-    const NUM_OPERATIONS: usize = 10;
+    const NUM_OPERATIONS: usize = 20;
     const NUM_SERVERS: usize = 10;
     const FAILURE_RATE: f64 = 1.0;
 
@@ -135,6 +138,7 @@ fn random_reads_and_writes_with_random_failures() {
         .filter(|s| !faulty_servers.contains(s))
         .collect();
 
+    // Set the failure rate for any connection involving a faulty server
     for faulty in faulty_servers {
         for server in servers.clone() {
             if faulty == server {
@@ -173,6 +177,8 @@ fn random_reads_and_writes_with_random_failures() {
 
     sim.run().unwrap();
 
+    // Collect log of call/response actions that occured during the simulation
+    // and assert that the resulting history is linearizable
     let actions = &mut *actions.lock().unwrap();
     actions.sort_by(|a, b| a.happened_at.cmp(&b.happened_at));
     let history = History::from_actions(
