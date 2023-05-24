@@ -1,0 +1,56 @@
+# A Headless Service, which manages the network identify of the StatefulSet
+apiVersion: v1
+kind: Service
+metadata:
+  name: atomic-register
+  labels:
+    app: atomic-register
+spec:
+  ports:
+  - port: 3000
+    name: atomic-register
+  clusterIP: None
+  selector:
+    app: atomic-register
+---
+# For each replica in the StatefulSet, a service to expose the Pod externally.
+apiVersion: v1
+kind: Service
+metadata:
+  name: atomic-register-0
+  labels:
+    app: atomic-register-0
+spec:
+  type: NodePort
+  externalTrafficPolicy: Local
+  selector:
+    statefulset.kubernetes.io/pod-name: atomic-register-0
+  ports:
+  - port: 3000
+    name: atomic-register
+---
+# TODO: Exaplain what this is...
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: atomic-register
+spec:
+  selector:
+    matchLabels: # Must match spec.template.metadata.labels
+      app: atomic-register
+      app.kubernetes.io/name: atomic-register
+  serviceName: "atomic-register"
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: atomic-register
+        app.kubernetes.io/name: atomic-register
+    spec:
+      containers:
+      - name: atomic-register
+        image: atomic-register-docker-minikube
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 3000
+          name: atomic-register
