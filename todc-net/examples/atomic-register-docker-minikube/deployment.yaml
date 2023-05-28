@@ -29,6 +29,21 @@ spec:
   - port: 3000
     name: atomic-register
 ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: atomic-register-1
+  labels:
+    app: atomic-register-1
+spec:
+  type: NodePort
+  externalTrafficPolicy: Local
+  selector:
+    statefulset.kubernetes.io/pod-name: atomic-register-1
+  ports:
+  - port: 3000
+    name: atomic-register
+---
 # TODO: Exaplain what this is...
 apiVersion: apps/v1
 kind: StatefulSet
@@ -40,7 +55,7 @@ spec:
       app: atomic-register
       app.kubernetes.io/name: atomic-register
   serviceName: "atomic-register"
-  replicas: 1
+  replicas: 2
   template:
     metadata:
       labels:
@@ -49,7 +64,7 @@ spec:
     spec:
       containers:
       - name: atomic-register
-        image: atomic-register-docker-minikube
+        image: atomic-register-docker-minikube:latest
         imagePullPolicy: Never
         ports:
         - containerPort: 3000
@@ -60,5 +75,5 @@ spec:
               fieldRef:
                 fieldPath: metadata.name
           - name: NUM_REPLICAS
-            value: "1" # Must match spec.replicas
+            value: "2" # Must match spec.replicas
 
