@@ -1,3 +1,6 @@
+use std::env;
+use std::net::SocketAddr;
+
 use bytes::Bytes;
 use http_body_util::combinators::BoxBody;
 use http_body_util::{BodyExt, Full};
@@ -7,7 +10,6 @@ use hyper::{Method, Request, Response, StatusCode};
 // use todc_net::atomic::register::abd_95::AtomicRegister;
 use tokio::net::TcpListener;
 
-use std::net::SocketAddr;
 
 async fn router(
     req: Request<hyper::body::Incoming>,
@@ -23,9 +25,28 @@ async fn router(
     }
 }
 
+/// Returns a vector containing the URL of all neighboring
+/// AtomicRegister instances in the local cluster.
+fn find_neighbors() {
+
+    let pod_name = env::var("POD_NAME")
+        .expect("environmental variable 'POD_NAME' should be set by K8s");
+
+    let num_replicas: u32 = env::var("NUM_REPLICAS")
+        .expect("environmental variable 'NUM_RECORDS' should be set by K8s")
+        .parse()
+        .expect("environmental variable 'NUM_RECORDS' should be stringified u32");
+
+    println!("Name: {pod_name:?}");
+    println!("Number of Replicas: {num_replicas:?}");
+    
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let addr: SocketAddr = ([0, 0, 0, 0], 3000).into();
+
+    find_neighbors();
 
     let listener = TcpListener::bind(addr).await?;
     println!("Listening on http://{}", addr);

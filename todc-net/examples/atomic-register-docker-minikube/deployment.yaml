@@ -54,3 +54,11 @@ spec:
         ports:
         - containerPort: 3000
           name: atomic-register
+        env:
+          - name: POD_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name
+          - name: NUM_REPLICAS
+            value: "1" # Must match spec.replicas
+
