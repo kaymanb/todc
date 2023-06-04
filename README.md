@@ -1,27 +1,15 @@
-# Theory of Distributed Computing
+# todc
 
-A library of algorithms used in theory of distributed computing, written in Rust. 
+`todc` is a library of distributed computing algorithms, written in Rust.
 
-TODO: Refactor README for workspace
+## Overview
 
-## Tests
+This is very experimental. The goal of this library is to bridge the gap between theory and practice by providing _usable_, _understandable_, and _correct_ implementations of algorithms from classic papers. 
 
-```
-cargo test
-```
+### Message Passing
 
-Coverage report available with `cargo llvm-cov --html --all`.
+For message passing systems, `todc-net` provides implementations for services that communicate over HTTP. 
 
-### Testing shared-memory
+### Shared Memory
 
-Run with the help of [loom](https://github.com/tokio-rs/loom):
-```
-LOOM_MAX_PREEMPTIONS=3 RUSTFLAGS="--cfg loom" cargo test --test main --release
-```
-
-## Benchmarks
-
-Run with the help of [criterion](https://github.com/bheisler/criterion.rs)
-```
-cargo criterion
-```
+For shared memory systems, `todc-mem` provides implementations for processes running on a single peice of hardware. 
