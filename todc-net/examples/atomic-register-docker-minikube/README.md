@@ -15,13 +15,13 @@ docker build -t atomic-register-docker-minikube ../.. -f Dockerfile
 Run this example with:
 
 ```
-docker run --rm -p 3000:3000 --name ardm atomic-register-docker-minikub
+docker run --rm -p 3000:3000 --name atomic-register --env-file .env atomic-register-docker-minikube
 ```
 
 To stop the example, run:
 
 ```
-docker kill ardm
+docker kill atomic-register
 ```
 
 ## Deploy with Minikube

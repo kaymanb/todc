@@ -5,9 +5,6 @@ use std::marker::PhantomData;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use bytes::Buf;
-use http_body_util::BodyExt;
-use hyper::Uri;
 use rand::distributions::Standard;
 use rand::prelude::Distribution;
 use rand::rngs::ThreadRng;
@@ -15,14 +12,13 @@ use rand::seq::IteratorRandom;
 use rand::{thread_rng, Rng};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
-use serde_json::json;
 
+use todc_net::abd_95::AtomicRegister;
 use todc_utils::linearizability::history::{Action, History};
 use todc_utils::linearizability::WLGChecker;
 use todc_utils::specifications::register::{RegisterOperation, RegisterSpecification};
 
-use crate::common::{get, post};
-use crate::register::{simulate_servers, SERVER_PREFIX};
+use crate::{simulate_servers, SERVER_PREFIX};
 
 use RegisterOperation::{Read, Write};
 
@@ -73,23 +69,28 @@ where
 
 /// A Register client that records call and response information about the
 /// operations that it performs.
-struct RecordingRegisterClient<T> {
+struct RecordingRegisterClient<T: Clone + Debug + Default + DeserializeOwned + Ord + Send> {
     actions: Arc<Mutex<Vec<RecordedAction<T>>>>,
     process: ProcessID,
+    register: AtomicRegister<T>,
     rng: ThreadRng,
-    url: Uri,
     value_type: PhantomData<T>,
 }
 
-impl<T: Clone + DeserializeOwned + Serialize> RecordingRegisterClient<T>
+impl<T: Debug + Default + Clone + DeserializeOwned + Ord + Send + Serialize + 'static>
+    RecordingRegisterClient<T>
 where
     Standard: Distribution<T>,
 {
-    fn new(process: ProcessID, url: Uri, actions: Arc<Mutex<Vec<RecordedAction<T>>>>) -> Self {
+    fn new(
+        process: ProcessID,
+        register: AtomicRegister<T>,
+        actions: Arc<Mutex<Vec<RecordedAction<T>>>>,
+    ) -> Self {
         Self {
             actions,
             process,
-            url,
+            register,
             rng: thread_rng(),
             value_type: PhantomData,
         }
@@ -115,10 +116,7 @@ where
         let call_action = Action::Call(Read(None));
         self.record(call_action);
 
-        let result = get(self.url.clone()).await.unwrap();
-        assert!(result.status().is_success());
-        let body = result.collect().await?.aggregate();
-        let value: T = serde_json::from_reader(body.reader())?;
+        let value = self.register.read().await.unwrap();
 
         let response_action = Action::Response(Read(Some(value)));
         self.record(response_action);
@@ -129,8 +127,7 @@ where
         let call_action = Action::Call(Write(value.clone()));
         self.record(call_action);
 
-        let result = post(self.url.clone(), json!(value.clone())).await.unwrap();
-        assert!(result.status().is_success());
+        self.register.write(value.clone()).await.unwrap();
 
         let response_action = Action::Response(Write(value));
         self.record(response_action);
@@ -151,7 +148,7 @@ fn random_reads_and_writes_with_random_failures() {
 
     // Simulate a network where a random minority of servers
     // fail with non-zero probability.
-    let mut sim = simulate_servers(NUM_SERVERS);
+    let (mut sim, registers) = simulate_servers(NUM_SERVERS);
     let servers: Vec<String> = (0..NUM_SERVERS)
         .map(|i| format!("{SERVER_PREFIX}-{i}"))
         .collect();
@@ -187,15 +184,11 @@ fn random_reads_and_writes_with_random_failures() {
     // Simulate clients that submit requests to correct servers.
     assert!(NUM_CLIENTS <= correct_servers.len());
     for i in 0..NUM_CLIENTS {
-        let client_name = format!("client-{i}");
-        let server_name = correct_servers.iter().choose(&mut rng).unwrap();
-        let url: Uri = format!("http://{server_name}:9999/register")
-            .parse()
-            .unwrap();
-
         let actions = actions.clone();
+        let register = registers[i].clone();
+        let client_name = format!("client-{i}");
         sim.client(client_name, async move {
-            let mut client = RecordingRegisterClient::<u32>::new(i, url, actions);
+            let mut client = RecordingRegisterClient::<u32>::new(i, register, actions);
             for _ in 0..NUM_OPERATIONS {
                 client.perform_random_operation(WRITE_PROBABILITY).await?;
             }
@@ -231,16 +224,16 @@ fn random_reads_and_writes_with_random_failures() {
 fn pair_of_reads_with_concurrent_write() {
     const NUM_SERVERS: usize = 5;
 
-    let mut sim = simulate_servers(NUM_SERVERS);
+    let (mut sim, registers) = simulate_servers(NUM_SERVERS);
     sim.set_max_message_latency(Duration::from_millis(1));
 
     let actions: Arc<Mutex<Vec<TimedAction<RegisterOperation<u32>>>>> =
         Arc::new(Mutex::new(vec![]));
 
     let actions_clone = actions.clone();
+    let register_0 = registers[0].clone();
     sim.client("concurrent-writer", async move {
-        let url: Uri = format!("http://server-0:9999/register").parse().unwrap();
-        let client = RecordingRegisterClient::<u32>::new(0, url, actions_clone);
+        let client = RecordingRegisterClient::<u32>::new(0, register_0, actions_clone);
 
         // Initially, server-0 is isolated in the network. In particular,
         // server-1 and server-2 will not recieve information about the written
@@ -255,6 +248,8 @@ fn pair_of_reads_with_concurrent_write() {
     });
 
     let actions_clone = actions.clone();
+    let register_1 = registers[1].clone();
+    let register_2 = registers[2].clone();
     sim.client("reader", async move {
         // First, release messages between server-0 to server-1 and wait for
         // any that occur during the concurrent write to be delivered.
@@ -262,8 +257,7 @@ fn pair_of_reads_with_concurrent_write() {
         std::thread::sleep(Duration::from_secs(1));
 
         // Then, perform a read on server-1.
-        let url: Uri = format!("http://server-1:9999/register").parse().unwrap();
-        let client_1 = RecordingRegisterClient::<u32>::new(1, url, actions_clone.clone());
+        let client_1 = RecordingRegisterClient::<u32>::new(1, register_1, actions_clone.clone());
         client_1.read().await?;
 
         // Next, hold messages between server-1 and server-2, preventing server-2
@@ -271,8 +265,7 @@ fn pair_of_reads_with_concurrent_write() {
         turmoil::hold("server-1", "server-2");
 
         // Perform a read on server-2.
-        let url: Uri = format!("http://server-2:9999/register").parse().unwrap();
-        let client_2 = RecordingRegisterClient::<u32>::new(2, url, actions_clone);
+        let client_2 = RecordingRegisterClient::<u32>::new(2, register_2, actions_clone);
         client_2.read().await?;
 
         // Finally, release all messeges from server-0, allow the write to complete.

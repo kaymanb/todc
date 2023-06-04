@@ -16,15 +16,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value as JSON;
 use tokio::task::JoinSet;
 
-use crate::{get, post, GenericError};
-
-fn mk_response(
-    value: JSON,
-) -> Result<Response<Full<Bytes>>, Box<dyn std::error::Error + Send + Sync>> {
-    Ok(Response::builder()
-        .body(Full::new(Bytes::from(value.to_string())))
-        .unwrap())
-}
+use crate::{get, mk_response, post, GenericError};
 
 #[derive(Clone, Debug, Default, Deserialize, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 struct LocalValue<T: Clone + Debug + Default + Ord + Send> {
@@ -76,7 +68,11 @@ impl<T: Clone + Debug + Default + DeserializeOwned + Ord + Send + Serialize + 's
         let mut handles = JoinSet::new();
         let info = Arc::new(Mutex::new(results));
 
+        let num_neighbors = self.neighbors.iter().len();
+        println!("Communicating with {num_neighbors:?} other replicas...");
+
         for (i, url) in self.neighbor_urls().into_iter().enumerate() {
+            println!("Sending request to {url:?}");
             let info = info.clone();
             let local = local.clone();
             handles.spawn(async move {
@@ -87,22 +83,41 @@ impl<T: Clone + Debug + Default + DeserializeOwned + Ord + Send + Serialize + 's
                     }
                     MessageType::Ask => get(url).await?,
                 };
+
+                let status = res.status();
+                println!("Got: {status:?}");
+
+                if res.status().is_server_error() {
+                    return Err(GenericError::from("Unexpected server error"));
+                }
+
                 let body = res.collect().await?.aggregate();
                 let value: LocalValue<T> = serde_json::from_reader(body.reader())?;
+                println!("Recieved {value:?} from {i}");
                 let mut info = info.lock().unwrap();
                 (*info)[i + 1] = Some(value);
                 Ok::<(), GenericError>(())
             });
         }
 
-        let mut acks = 1_f32;
+        let mut acks = 1;
+        let mut failures = 0;
         let minority = (self.neighbors.len() as f32 + 1_f32) / 2_f32;
-        while acks <= minority {
-            if handles.join_next().await.is_some() {
-                acks += 1_f32;
+        while acks as f32 <= minority && (failures as f32) <= minority {
+            if let Some(response) = handles.join_next().await {
+                match response? {
+                    Ok(_) => acks += 1,
+                    Err(_) => failures += 1,
+                }
             }
         }
+
+        if (failures as f32) > minority {
+            return Err(GenericError::from("A majority of neighbors were faulty"));
+        }
+
         let results = info.lock().unwrap().clone();
+        println!("After communication: {results:?}");
         Ok(results)
     }
 
@@ -118,7 +133,7 @@ impl<T: Clone + Debug + Default + DeserializeOwned + Ord + Send + Serialize + 's
             .collect()
     }
 
-    async fn read(&self) -> Result<T, GenericError> {
+    pub async fn read(&self) -> Result<T, GenericError> {
         let info = self.communicate(MessageType::Ask).await?;
         let max = info.into_iter().max().unwrap().unwrap();
         let local = self.update(&max);
@@ -134,7 +149,7 @@ impl<T: Clone + Debug + Default + DeserializeOwned + Ord + Send + Serialize + 's
         local.clone()
     }
 
-    async fn write(&self, value: T) -> Result<(), GenericError> {
+    pub async fn write(&self, value: T) -> Result<(), GenericError> {
         let new = LocalValue {
             value,
             label: self.local.lock().unwrap().label + 1,

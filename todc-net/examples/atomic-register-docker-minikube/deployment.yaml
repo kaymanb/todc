@@ -55,7 +55,7 @@ spec:
       app: atomic-register
       app.kubernetes.io/name: atomic-register
   serviceName: "atomic-register"
-  replicas: 2
+  replicas: 3
   template:
     metadata:
       labels:
@@ -64,7 +64,7 @@ spec:
     spec:
       containers:
       - name: atomic-register
-        image: atomic-register-docker-minikube:latest
+        image: atomic-register-docker-minikube-app:latest
         imagePullPolicy: Never
         ports:
         - containerPort: 3000
@@ -75,5 +75,7 @@ spec:
               fieldRef:
                 fieldPath: metadata.name
           - name: NUM_REPLICAS
-            value: "2" # Must match spec.replicas
+            value: "3" # Must match spec.replicas
+          - name: RUST_LOG
+            value: info
 

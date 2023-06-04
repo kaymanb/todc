@@ -1,27 +1,32 @@
 use std::env;
+use std::fmt::Debug;
 use std::net::SocketAddr;
 
 use bytes::Bytes;
-use http_body_util::combinators::BoxBody;
-use http_body_util::{BodyExt, Full};
+use http_body_util::Full;
+use hyper::body::Incoming;
 use hyper::server::conn::http1;
-use hyper::service::service_fn;
-use hyper::{Method, Request, Response, StatusCode, Uri};
-use todc_net::atomic::register::abd_95::AtomicRegister;
+use hyper::service::{Service, service_fn};
+use hyper::{Method, Request, Response, Uri};
+use serde::Serialize;
+use serde::de::DeserializeOwned;
+use serde_json::json;
 use tokio::net::TcpListener;
+use tracing_subscriber;
 
-async fn router(
-    req: Request<hyper::body::Incoming>,
-) -> Result<Response<BoxBody<Bytes, hyper::Error>>, hyper::Error> {
+// TODO: mk_response should not be public...
+use todc_net::mk_response;
+use todc_net::atomic::register::abd_95::AtomicRegister;
+
+async fn router<T: Clone + Debug + Default + DeserializeOwned + Ord + Send + Serialize + 'static>(
+    mut register: AtomicRegister<T>, 
+    req: Request<Incoming>
+) -> Result<Response<Full<Bytes>>, Box<dyn std::error::Error + Send + Sync>> {
     match (req.method(), req.uri().path()) {
-        (&Method::GET, "/") => Ok(Response::new(full("Try submitting requests to /register!"))),
-
-        _ => {
-            let mut not_found = Response::new(full(""));
-            *not_found.status_mut() = StatusCode::NOT_FOUND;
-            Ok(not_found)
-        }
+        (&Method::GET, "/") => mk_response(json!("Try submitting requests to /register!")),
+        _ => register.call(req).await
     }
+
 }
 
 /// Returns a vector containing the URL of all neighboring
@@ -47,7 +52,7 @@ fn find_neighbors() -> Vec<Uri> {
     (0..num_replicas)
         .filter(|i| i != &ordinal)
         .map(|i| {
-            format!("http://{app_name}-{i}.svc.cluster.local")
+            format!("http://{app_name}-{i}.default.svc.cluster.local")
                 .parse()
                 .unwrap()
         })
@@ -56,28 +61,29 @@ fn find_neighbors() -> Vec<Uri> {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    tracing_subscriber::fmt::init();
+
     let addr: SocketAddr = ([0, 0, 0, 0], 3000).into();
 
     let neighbors = find_neighbors();
-    let _register: AtomicRegister<String> = AtomicRegister::new(neighbors);
+    let register: AtomicRegister<String> = AtomicRegister::new(neighbors);
 
     let listener = TcpListener::bind(addr).await?;
     println!("Listening on http://{}", addr);
     loop {
         let (stream, _) = listener.accept().await?;
+        
+        let register = register.clone();
         tokio::task::spawn(async move {
             if let Err(err) = http1::Builder::new()
-                .serve_connection(stream, service_fn(router))
+                .serve_connection(stream, service_fn(move |req| {
+                    let register = register.clone();
+                    router(register, req)
+                }))
                 .await
             {
                 println!("Failed to serve connection: {:?}", err);
             }
         });
     }
-}
-
-fn full<T: Into<Bytes>>(chunk: T) -> BoxBody<Bytes, hyper::Error> {
-    Full::new(chunk.into())
-        .map_err(|never| match never {})
-        .boxed()
 }

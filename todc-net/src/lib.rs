@@ -7,7 +7,7 @@ use serde_json::{json, Value as JSON};
 
 use crate::net::TcpStream;
 
-pub mod atomic;
+pub mod abd_95;
 pub mod net;
 
 type GenericError = Box<dyn std::error::Error + Send + Sync>;
@@ -39,6 +39,14 @@ async fn make_request(url: Uri, method: Method, body: JSON) -> ResponseResult {
         .body(full(body))?;
 
     Ok(sender.send_request(req).await?)
+}
+
+pub fn mk_response(
+    value: JSON,
+) -> Result<Response<Full<Bytes>>, Box<dyn std::error::Error + Send + Sync>> {
+    Ok(Response::builder()
+        .body(Full::new(Bytes::from(value.to_string())))
+        .unwrap())
 }
 
 fn full(value: JSON) -> BoxBody<Bytes, hyper::Error> {

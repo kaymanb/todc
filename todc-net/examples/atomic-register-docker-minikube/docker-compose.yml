@@ -1,0 +1,9 @@
+version: "3.9"
+services:
+  app:
+    build: 
+      context: ../..
+      dockerfile: examples/atomic-register-docker-minikube/Dockerfile
+    ports:
+      - 3000:3000
+    env_file: .env
