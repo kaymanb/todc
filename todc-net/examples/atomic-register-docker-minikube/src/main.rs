@@ -2,8 +2,8 @@ use std::env;
 use std::fmt::Debug;
 use std::net::SocketAddr;
 
-use bytes::Bytes;
-use http_body_util::Full;
+use bytes::{Buf, Bytes};
+use http_body_util::{BodyExt, Full};
 use hyper::body::Incoming;
 use hyper::server::conn::http1;
 use hyper::service::{Service, service_fn};
@@ -16,7 +16,7 @@ use tracing_subscriber;
 
 // TODO: mk_response should not be public...
 use todc_net::mk_response;
-use todc_net::atomic::register::abd_95::AtomicRegister;
+use todc_net::abd_95::AtomicRegister;
 
 async fn router<T: Clone + Debug + Default + DeserializeOwned + Ord + Send + Serialize + 'static>(
     mut register: AtomicRegister<T>, 
@@ -24,6 +24,16 @@ async fn router<T: Clone + Debug + Default + DeserializeOwned + Ord + Send + Ser
 ) -> Result<Response<Full<Bytes>>, Box<dyn std::error::Error + Send + Sync>> {
     match (req.method(), req.uri().path()) {
         (&Method::GET, "/") => mk_response(json!("Try submitting requests to /register!")),
+        (&Method::GET, "/register") => {
+            let value: T = register.read().await.unwrap();
+            mk_response(serde_json::to_value(value).unwrap())
+        },
+        (&Method::POST, "/register") => {
+            let body = req.collect().await?.aggregate();
+            let value: T = serde_json::from_reader(body.reader())?;
+            register.write(value).await.unwrap();
+            mk_response(json!(null))
+        },
         _ => register.call(req).await
     }
 
@@ -52,7 +62,7 @@ fn find_neighbors() -> Vec<Uri> {
     (0..num_replicas)
         .filter(|i| i != &ordinal)
         .map(|i| {
-            format!("http://{app_name}-{i}.default.svc.cluster.local")
+            format!("http://{app_name}-{i}.default.svc.cluster.local:3000")
                 .parse()
                 .unwrap()
         })

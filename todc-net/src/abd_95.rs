@@ -13,7 +13,6 @@ use hyper::service::Service;
 use hyper::{Method, Request, Response, Uri};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use serde_json::Value as JSON;
 use tokio::task::JoinSet;
 
 use crate::{get, mk_response, post, GenericError};
@@ -113,7 +112,7 @@ impl<T: Clone + Debug + Default + DeserializeOwned + Ord + Send + Serialize + 's
         }
 
         if (failures as f32) > minority {
-            return Err(GenericError::from("A majority of neighbors were faulty"));
+            return Err(GenericError::from("A majority of neighbors are offline"));
         }
 
         let results = info.lock().unwrap().clone();
@@ -171,18 +170,6 @@ impl<T: Clone + Debug + Default + DeserializeOwned + Ord + Send + Serialize + 's
         // TODO: Explain this.
         let me = self.clone();
         match (req.method(), req.uri().path()) {
-            // GET requests perform a 'read' on the shared-register.
-            (&Method::GET, "/register") => Box::pin(async move {
-                let value = me.read().await?;
-                mk_response(serde_json::to_value(value)?)
-            }),
-            // POST requests perform a 'write' on the shared-register.
-            (&Method::POST, "/register") => Box::pin(async move {
-                let body = req.collect().await?.aggregate();
-                let value: T = serde_json::from_reader(body.reader())?;
-                me.write(value).await?;
-                mk_response(JSON::Null)
-            }),
             // GET requests return this severs local value and associated label
             (&Method::GET, "/register/local") => {
                 Box::pin(async move { mk_response(serde_json::to_value(&me.local)?) })

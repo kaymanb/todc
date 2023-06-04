@@ -107,9 +107,7 @@ mod read {
         sim.client("client", async move {
             turmoil::hold("client", "server-1");
             turmoil::hold("client", "server-2");
-
             replicas[0].read().await.unwrap();
-
             Ok(())
         });
 
@@ -118,6 +116,35 @@ mod read {
             .unwrap_err()
             .to_string()
             .contains("Ran for 10s without completing"))
+    }
+
+    #[test]
+    fn returns_even_if_half_of_neighbors_are_offline() {
+        let (mut sim, replicas) = simulate_servers(3);
+        sim.client("client", async move {
+            turmoil::partition("client", "server-1");
+            replicas[0].read().await.unwrap();
+            Ok(())
+        });
+
+        sim.run().unwrap();
+    }
+
+    #[test]
+    fn raises_error_if_more_than_half_of_neighbors_are_offline() {
+        let (mut sim, replicas) = simulate_servers(3);
+        sim.client("client", async move {
+            turmoil::partition("client", "server-1");
+            turmoil::partition("client", "server-2");
+            let result = replicas[0].read().await;
+            assert!(result
+                .unwrap_err()
+                .to_string()
+                .contains("A majority of neighbors are offline"));
+            Ok(())
+        });
+
+        sim.run().unwrap();
     }
 }
 
@@ -177,7 +204,7 @@ mod write {
     }
 
     #[test]
-    fn hangs_if_more_than_half_of_neighbors_are_offline() {
+    fn hangs_if_more_than_half_of_neighbors_are_unreachable() {
         let (mut sim, replicas) = simulate_servers(3);
         sim.client("client", async move {
             turmoil::hold("client", "server-1");
@@ -191,6 +218,35 @@ mod write {
             .unwrap_err()
             .to_string()
             .contains("Ran for 10s without completing"))
+    }
+
+    #[test]
+    fn returns_even_if_half_of_neighbors_are_offline() {
+        let (mut sim, replicas) = simulate_servers(3);
+        sim.client("client", async move {
+            turmoil::partition("client", "server-1");
+            replicas[0].write(123).await.unwrap();
+            Ok(())
+        });
+
+        sim.run().unwrap();
+    }
+
+    #[test]
+    fn raises_error_if_more_than_half_of_neighbors_are_offline() {
+        let (mut sim, replicas) = simulate_servers(3);
+        sim.client("client", async move {
+            turmoil::partition("client", "server-1");
+            turmoil::partition("client", "server-2");
+            let result = replicas[0].write(123).await;
+            assert!(result
+                .unwrap_err()
+                .to_string()
+                .contains("A majority of neighbors are offline"));
+            Ok(())
+        });
+
+        sim.run().unwrap();
     }
 }
 
