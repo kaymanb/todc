@@ -16,7 +16,7 @@ Coverage report available with `cargo llvm-cov --html --all`.
 
 Run with the help of [loom](https://github.com/tokio-rs/loom):
 ```
-LOOM_MAX_PREEMPTIONS=3 cargo test --test main --release --features loom
+LOOM_MAX_PREEMPTIONS=3 cargo test --release --features loom
 ```
 
 ## Benchmarks

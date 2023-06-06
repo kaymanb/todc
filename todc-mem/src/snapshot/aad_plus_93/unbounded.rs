@@ -3,31 +3,47 @@ use core::array::from_fn;
 use num::{One, PrimInt, Unsigned};
 
 use crate::register::{AtomicRegister, MutexRegister, Register};
-use crate::snapshot::Snapshot;
+use crate::snapshot::{ProcessId, Snapshot};
 
+/// A wait-free `N`-process single-writer multi-reader atomic snapshot.
+///
+/// This implementation is backed by `AtomicRegister` objects.
+// TODO: Mention limitations on N
 pub type UnboundedAtomicSnapshot<const N: usize> =
     UnboundedSnapshot<AtomicRegister<UnboundedAtomicContents<N>>, N>;
 
+/// An `N`-process single-writer multi-reader snapshot.
+///
+/// This implementation is backed by `MutexRegiser` objects,
+/// and is linearizable but not lock-free.
 pub type UnboundedMutexSnapshot<T, const N: usize> =
     UnboundedSnapshot<MutexRegister<UnboundedContents<T, N>>, N>;
 
+/// The contents of a component of the snapshot object.
 pub trait Contents<const N: usize>: Default {
     type Value: Copy;
     type SeqSize: PrimInt + Unsigned + One;
 
+    /// Creates a new component.
     fn new(value: Self::Value, sequence: Self::SeqSize, view: [Self::Value; N]) -> Self;
 
+    /// Returns the sequence number stored in this component.
     fn sequence(&self) -> Self::SeqSize;
 
+    /// Returns the value stored in this component.
     fn value(&self) -> Self::Value;
 
+    /// Returns the view stored in this component.
     fn view(&self) -> [Self::Value; N];
 }
 
-/// A single-writer multi-reader snapshot.
+/// A wait-free `N`-process single-writer multi-reader snapshot object, backed by
+/// register objects of type `R`.
 ///
 /// This implementation relies on storing sequence numbers that can
-/// grow arbitrarily large.
+/// grow arbitrarily large, and is described in Section 3 of
+/// [[AAD+93]](https://dl.acm.org/doi/10.1145/153724.153741). If `R`
+/// is linearizable, then `UnboundedSnapshot<R, N>` is as well.
 pub struct UnboundedSnapshot<R: Register, const N: usize>
 where
     R::Value: Contents<N>,
@@ -39,6 +55,8 @@ impl<R: Register, const N: usize> UnboundedSnapshot<R, N>
 where
     R::Value: Contents<N>,
 {
+    /// Returns an array of values, obtained by sequentially
+    /// performing a read on each component of the snapshot.
     fn collect(&self) -> [R::Value; N] {
         from_fn(|i| self.registers[i].read())
     }
@@ -50,6 +68,7 @@ where
 {
     type Value = <R::Value as Contents<N>>::Value;
 
+    /// Creates a new snapshot object.
     fn new() -> Self {
         Self {
             registers: [(); N].map(|_| R::new()),

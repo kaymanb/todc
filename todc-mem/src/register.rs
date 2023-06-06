@@ -11,7 +11,7 @@ pub trait Register {
     /// Creates a new register.
     fn new() -> Self;
 
-    /// Returns the contents stored in the register.
+    /// Returns the value currently contained in the register.
     fn read(&self) -> Self::Value;
 
     /// Sets contents of the register to the specified value.
