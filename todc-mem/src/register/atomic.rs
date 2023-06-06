@@ -27,7 +27,7 @@ use super::Register;
 /// guaranteed to be sequentially consistent, not necessarily lineariazable.
 ///
 /// Thankfully, it was recently shown by Perrin, Petrolia, Mostefaoui, and Jard
-/// [PPM+2016](https://arxiv.org/abs/1607.06258) that objects that would become
+/// [[PPM+2016]](https://arxiv.org/abs/1607.06258) that objects that would become
 /// linearizable if they were implemented on top of a linearizable memory become
 /// sequentially consistent if implemented on top of sequentially consistent
 /// memory. This means that, while implemenations of linearizable algorithms
@@ -77,35 +77,36 @@ use super::Register;
 ///
 /// impl From<TinyString> for u64 {
 ///     fn from(string: TinyString) -> Self {
-///         // TODO: Snip this?
-///         let mut result = Self::MAX;
-///         let bytes = string.0.into_bytes();
-///         for (i, num) in bytes.iter().rev().enumerate() {
-///             let mut num = (*num as u64) << (i * 8);
-///             for j in 0..i {
-///                 num |= (u8::MAX as u64) << (j * 8);
-///             }
-///             for k in 0..(8 - i - 1) {
-///                 num |= ((u8::MAX as u64) << ((8 - k - 1) * 8));
-///             }
-///             result &= num;
-///         }
-///         result
+///         // -- snipped --
+/// #       let mut result = Self::MAX;
+/// #       let bytes = string.0.into_bytes();
+/// #       for (i, num) in bytes.iter().rev().enumerate() {
+/// #           let mut num = (*num as u64) << (i * 8);
+/// #           for j in 0..i {
+/// #               num |= (u8::MAX as u64) << (j * 8);
+/// #           }
+/// #           for k in 0..(8 - i - 1) {
+/// #               num |= ((u8::MAX as u64) << ((8 - k - 1) * 8));
+/// #           }
+/// #           result &= num;
+/// #       }
+/// #       result
 ///     }
 /// }
 ///
 /// impl From<u64> for TinyString {
 ///     fn from(value: u64) -> Self {
-///         let bytes: Vec<u8> = value.to_be_bytes()
-///             .into_iter()
-///             .filter(|&&x| x != u8::MAX)
-///             .map(|x| *x)
-///             .collect();
-///         let mut result: String<8> = String::from("");
-///         if let Ok(string) = std::str::from_utf8(&bytes[..]) {
-///             result.push_str(string);
-///         };  
-///         Self(result)
+///         // -- snipped --
+/// #       let bytes: Vec<u8> = value.to_be_bytes()
+/// #           .into_iter()
+/// #           .filter(|&&x| x != u8::MAX)
+/// #           .map(|x| *x)
+/// #           .collect();
+/// #       let mut result: String<8> = String::from("");
+/// #       if let Ok(string) = std::str::from_utf8(&bytes[..]) {
+/// #           result.push_str(string);
+/// #       };  
+/// #       Self(result)
 ///     }
 /// }
 ///
@@ -118,7 +119,7 @@ use super::Register;
 /// register.write(greeting.clone());
 /// assert_eq!(register.read(), greeting);
 ///
-/// let emojis = TinyString(String::from("🦀👋"));
+/// let emojis = TinyString(String::from("👋🦀"));
 /// register.write(emojis.clone());
 /// assert_eq!(register.read(), emojis);
 /// ```

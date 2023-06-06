@@ -11,7 +11,7 @@
 //! in this module will be as well. For more details on the differences between
 //! register implementations, see `AtomicRegister`.
 //!
-//! # Restrictions on Atomic Snapshot Contents
+//! # Restrictions on Atomic Snapshot Values
 //!
 //! Due to restrictions on the number of bits of atomic shared-memory that is
 //! available on most hardware (a maximum of 64), the `BoundedAtomicRegister`
@@ -37,7 +37,7 @@
 //! for i in 1..N {
 //!     let mut snapshot = snapshot.clone();
 //!     handles.push(thread::spawn(move || {
-//!         // Each thread update's it's component of the snapshot
+//!         // Each thread updates its component of the snapshot
 //!         // to indicate that it has taken a step.
 //!         snapshot.update(i, 1);
 //!     }));
