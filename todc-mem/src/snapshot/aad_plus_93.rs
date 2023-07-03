@@ -21,9 +21,10 @@
 //!
 //! # Examples
 //!
-//! Obtain a consistent view of shared memory.
+//! Obtain a consistent view of progress being made by a set of threads.
 //!
 //! ```
+//! # use std::sync::atomic::{AtomicU8, Ordering};
 //! use std::sync::Arc;
 //! use std::thread;
 //! use todc_mem::snapshot::Snapshot;
@@ -33,30 +34,45 @@
 //!
 //! let snapshot: Arc<BoundedAtomicSnapshot<N>> = Arc::new(BoundedAtomicSnapshot::new());
 //!
+//! # static hidden_state: [AtomicU8; N] = [
+//! #   AtomicU8::new(0), AtomicU8::new(0), AtomicU8::new(0),
+//! #   AtomicU8::new(0), AtomicU8::new(0), AtomicU8::new(0)
+//! # ];
+//! fn do_work(i: usize) -> Option<u8> {
+//!     // -- snipped --
+//! #    let percent = hidden_state[i].load(Ordering::Acquire);
+//! #    if percent < 100 {
+//! #        hidden_state[i].store(percent + 1, Ordering::Release);
+//! #        Some(percent)
+//! #    } else {
+//! #        None
+//! #    }
+//! }
+//!
+//! // Each worker thread does some work and periodically updates
+//! // its component of the snapshot with the amount of progress
+//! // it has made so far.
 //! let mut handles = Vec::new();
 //! for i in 1..N {
 //!     let mut snapshot = snapshot.clone();
 //!     handles.push(thread::spawn(move || {
-//!         // Each thread updates its component of the snapshot
-//!         // to indicate that it has taken a step.
-//!         snapshot.update(i, 1);
+//!         while let Some(percent_complete) = do_work(i) {
+//!             snapshot.update(i, percent_complete);
+//!         }        
 //!     }));
 //! }
 //!
-//! snapshot.update(0, 1);
-//!
-//! // The main thread performs a scan, and filters the results
-//! // to obtain a list of processes that had taken steps at
-//! // at that instant.
-//! let view = snapshot.scan(0);
-//! let thread_ids: Vec<usize> = view
-//!     .iter()
-//!     .enumerate()
-//!     .filter(|(i, &v)| v != 0)
-//!     .map(|(i, v)| i + 1)
-//!     .collect();
-//!
-//! println!("Threads {thread_ids:?} have taken steps!");
+//! // The main thread waits until all workers have completed
+//! // at least half of their work, before printing a message.
+//! snapshot.update(0, 100);
+//! loop {
+//!     let view = snapshot.scan(0);
+//!     println!("{view:?}");
+//!     if view.iter().all(|&p| p >= 50) {
+//!         println!("We're half-way done!");
+//!         break;
+//!     }
+//! }
 //!
 //! for thread in handles {
 //!     thread.join().unwrap();

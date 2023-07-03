@@ -4,9 +4,10 @@ pub mod aad_plus_93;
 pub mod ar_98;
 pub mod mutex;
 
+/// An ID for a process (or thread).
 pub type ProcessId = usize;
 
-/// An N-component snapshot object.
+/// An `N`-component snapshot object.
 pub trait Snapshot<const N: usize> {
     type Value: Clone;
 
