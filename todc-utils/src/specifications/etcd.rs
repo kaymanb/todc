@@ -3,7 +3,7 @@ use std::io::{self, BufRead};
 use std::path::Path;
 
 use crate::linearizability::history::{Action, History};
-use crate::linearizability::Specification;
+use crate::specifications::Specification;
 
 type ProcessID = usize;
 

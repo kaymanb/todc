@@ -1,4 +1,4 @@
-//! Checking [linearizability](https://en.wikipedia.org/wiki/Linearizability).  
+//! Checking [linearizability](https://en.wikipedia.org/wiki/Linearizability) of a history of operations applied to a shared object.
 //!
 //! See _Testing for Linearizability_ by Gavin Lowe [\[L16\]](https://doi.org/10.1002/cpe.3928) and
 //! _Faster Linearizability Checking via P-Compositionality_ by Horn and Kroening
@@ -7,26 +7,143 @@
 //! See [`linearizability-checker``](https://github.com/ahorn/linearizability-checker) for C++
 //! implementations of the algorithms contained in this module. For implementations in Go,
 //! see [`porcupine`](https://github.com/anishathalye/porcupine).
+use std::collections::HashSet;
 
 use crate::linearizability::history::{Entry, History};
-use std::collections::HashSet;
-use std::fmt::Debug;
-use std::hash::Hash;
+use crate::specifications::Specification;
 
 pub mod history;
 
-pub trait Specification {
-    type State: Clone + Eq + Hash + Debug;
-    type Operation: Clone + Debug;
-
-    /// Returns an initial state for the specification.
-    fn init(&self) -> Self::State;
-
-    /// Returns the state that results from a valid call and response pair.
-    fn apply(&self, op: &Self::Operation, state: &Self::State) -> (bool, Self::State);
-}
-
-pub struct WLGChecker {}
+/// A linearizability checker.
+///
+/// An implementation of the algorithm originally defined by Jeannette Wing and Chun Gong
+/// [\[WG93\]](https://www.cs.cmu.edu/~wing/publications/WingGong93.pdf), and
+/// extended by Gavin Lowe [\L16\]](https://www.cs.cmu.edu/~wing/publications/WingGong93.pdf).
+///
+/// Given a history of operations, the algorithm works by linearizing each operation
+/// as soon as possible. When an operation cannot be linearized, it backtracks and
+/// proceeds with the next operation. Memoization occurs by caching each partial
+/// linearization, and preventing the algorithm from continuing its search when it
+/// is already known that the state of the object and remaining operations have no
+/// valid linearization.
+///
+/// # Examples
+///
+/// Consider the following specification of a register containing `i32` values.
+///
+/// ```
+/// use todc_utils::specifications::Specification;
+///
+/// #[derive(Copy, Clone, Debug)]
+/// enum RegisterOp {
+///     Read(u32),
+///     Write(u32),
+/// }
+///
+/// use RegisterOp::{Read, Write};
+///
+/// struct RegisterSpec;
+///
+/// impl Specification for RegisterSpec {
+///     type State = u32;
+///     type Operation = RegisterOp;
+///     
+///     fn init(&self) -> Self::State {
+///         0
+///     }
+///
+///     fn apply(&self, operation: &Self::Operation, state: &Self::State) -> (bool, Self::State) {
+///         match operation {
+///             Read(value) => (value == state, *state),
+///             Write(value) => (true, *value),
+///         }
+///     }
+/// }
+/// ```    
+///
+/// We can confirm that a history where two processes sequentially perform reads
+/// and writes is in fact linearizable.
+///
+/// ```
+/// # use todc_utils::specifications::Specification;
+/// # #[derive(Copy, Clone, Debug)]
+/// # enum RegisterOp {
+/// #     Read(u32),
+/// #     Write(u32),
+/// # }
+///
+/// # use RegisterOp::*;
+///
+/// # struct RegisterSpec;
+///
+/// # impl Specification for RegisterSpec {
+/// #     type State = u32;
+/// #     type Operation = RegisterOp;
+/// #     
+/// #     fn init(&self) -> Self::State {
+/// #         0
+/// #     }
+///
+/// #     fn apply(&self, operation: &Self::Operation, state: &Self::State) -> (bool, Self::State) {
+/// #         match operation {
+/// #             Read(value) => (value == state, *state),
+/// #             Write(value) => (true, *value),
+/// #         }
+/// #     }
+/// # }
+/// use todc_utils::linearizability::{WGLChecker, history::{History, Action::{Call, Response}}};
+///
+/// let history = History::from_actions(vec![
+///     (0, Call(Write(1))),
+///     (0, Response(Write(1))),
+///     (1, Call(Read(1))),
+///     (1, Response(Read(1))),
+/// ]);
+/// assert!(WGLChecker::is_linearizable(RegisterSpec, history));
+/// ```    
+///
+/// If the second process performs a read that returns an invalid value, we can
+/// check that the corresponding history is **not** linearizable as well.
+/// ```
+/// # use todc_utils::specifications::Specification;
+///
+/// # #[derive(Copy, Clone, Debug)]
+/// # enum RegisterOp {
+/// #     Read(u32),
+/// #     Write(u32),
+/// # }
+///
+/// # use RegisterOp::*;
+///
+/// # struct RegisterSpec;
+///
+/// # impl Specification for RegisterSpec {
+/// #     type State = u32;
+/// #     type Operation = RegisterOp;
+/// #     
+/// #     fn init(&self) -> Self::State {
+/// #         0
+/// #     }
+///
+/// #     fn apply(&self, operation: &Self::Operation, state: &Self::State) -> (bool, Self::State) {
+/// #         match operation {
+/// #             Read(value) => (value == state, *state),
+/// #             Write(value) => (true, *value),
+/// #         }
+/// #     }
+/// # }
+///
+/// # use todc_utils::linearizability::{WGLChecker, history::{History, Action::{Call, Response}}};
+///
+/// let history = History::from_actions(vec![
+///     (0, Call(Write(1))),
+///     (0, Response(Write(1))),
+///     (1, Call(Read(2))),
+///     (1, Response(Read(2))),
+/// ]);
+/// assert!(!WGLChecker::is_linearizable(RegisterSpec, history));
+/// ```
+pub struct WGLChecker {}
 
 type OperationEntry<S> = Entry<<S as Specification>::Operation>;
 type OperationCall<S> = (
@@ -34,7 +151,8 @@ type OperationCall<S> = (
     <S as Specification>::State,
 );
 
-impl WLGChecker {
+impl WGLChecker {
+    /// Returns whether the history of operations is linearizable with respect to the specification.
     pub fn is_linearizable<S: Specification>(spec: S, mut history: History<S::Operation>) -> bool {
         let mut state = spec.init();
         let mut linearized = vec![false; history.len()];
@@ -123,7 +241,7 @@ mod test {
                 (0, Call(Read(1))),
                 (0, Response(Read(1))),
             ]);
-            assert!(WLGChecker::is_linearizable(IntegerRegisterSpec, history));
+            assert!(WGLChecker::is_linearizable(IntegerRegisterSpec, history));
         }
 
         #[test]
@@ -134,7 +252,7 @@ mod test {
                 (0, Call(Read(2))),
                 (0, Response(Read(2))),
             ]);
-            assert!(!WLGChecker::is_linearizable(IntegerRegisterSpec, history));
+            assert!(!WGLChecker::is_linearizable(IntegerRegisterSpec, history));
         }
 
         #[test]
@@ -162,7 +280,7 @@ mod test {
                 (1, Response(Write(2))),
                 (2, Response(Write(3))),
             ]);
-            assert!(WLGChecker::is_linearizable(IntegerRegisterSpec, history));
+            assert!(WGLChecker::is_linearizable(IntegerRegisterSpec, history));
         }
 
         #[test]
@@ -183,7 +301,7 @@ mod test {
                 (2, Response(Read(0))),
                 (0, Response(Write(1))),
             ]);
-            assert!(!WLGChecker::is_linearizable(IntegerRegisterSpec, history));
+            assert!(!WGLChecker::is_linearizable(IntegerRegisterSpec, history));
         }
     }
 }

@@ -2,22 +2,23 @@ use std::fmt::Debug;
 use std::hash::Hash;
 use std::marker::PhantomData;
 
-use crate::linearizability::Specification;
+use crate::specifications::Specification;
 
-/// An operation on a register containing values of type `T`.
+/// An operation for a register.
 #[derive(Debug, Copy, Clone)]
 pub enum RegisterOperation<T> {
-    /// A `read` of the register.
+    /// Read a value of type `T` from the register.
     ///
-    /// If the value of the operation is unknown, such as before the `read`
-    /// has returned, it can be represented as `Read(None)`.
+    /// If the return value of the operation is not-yet-known, then this can be
+    /// represented as `Read(None)`.
     Read(Option<T>),
+    /// Write a value of type `T` to the register.
     Write(T),
 }
 
 use RegisterOperation::*;
 
-/// A sequential specification of a register..
+/// A sequential specification of a register.
 pub struct RegisterSpecification<T: Default + Eq> {
     data_type: PhantomData<T>,
 }
@@ -49,7 +50,7 @@ impl<T: Clone + Debug + Default + Eq + Hash> Specification for RegisterSpecifica
             Read(value) => {
                 let value = value
                     .as_ref()
-                    .expect("Cannot apply `read` with unknown return value");
+                    .expect("Cannot apply `Read` with unknown return value");
                 (value == state, state.clone())
             }
             Write(value) => (true, value.clone()),

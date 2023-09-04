@@ -1,4 +1,4 @@
-use todc_utils::linearizability::WLGChecker;
+use todc_utils::linearizability::WGLChecker;
 use todc_utils::specifications::etcd::{history_from_log, EtcdSpecification};
 
 #[macro_export]
@@ -11,13 +11,15 @@ macro_rules! etcd_tests {
                 let history = history_from_log(
                     format!("tests/linearizability/etcd/etcd_{}.log", log_number)
                 );
-                let result = WLGChecker::is_linearizable(EtcdSpecification, history);
+                let result = WGLChecker::is_linearizable(EtcdSpecification, history);
                 assert_eq!(result, expected_result);
             }
         )*
     }
 }
 
+// For the source of these values, see
+// https://github.com/ahorn/linearizability-checker/blob/9b589ae2a8654e1272194b7d9a1644b432a73326/lt.cc#L5400
 etcd_tests! {
     test_000: ("000", false),
     test_001: ("001", false),

@@ -3,18 +3,26 @@ use std::fmt::Debug;
 use std::hash::Hash;
 use std::marker::PhantomData;
 
-use crate::linearizability::Specification;
+use crate::specifications::Specification;
 
 use SnapshotOperation::{Scan, Update};
 
 pub type ProcessID = usize;
 
+/// An operation for a snapshot object.
 #[derive(Debug, Copy, Clone)]
 pub enum SnapshotOperation<T, const N: usize> {
+    /// Scan the object and return an view containing the values in each component.
+    ///
+    /// If the return value of a scan is not-yet-known, this can be represented
+    /// as `Scan(pid, None)`.
     Scan(ProcessID, Option<[T; N]>),
     Update(ProcessID, T),
 }
 
+/// A specification of an `N`-process snapshot object.
+///
+/// Each component of the snapshot contains a value of type `T`.
 pub struct SnapshotSpecification<T: Clone + Debug + Default + Eq + Hash, const N: usize> {
     data_type: PhantomData<T>,
 }
@@ -42,8 +50,7 @@ impl<T: Clone + Debug + Default + Eq + Hash, const N: usize> Specification
         match operation {
             Scan(_, result) => match result {
                 Some(view) => (view == state, state.clone()),
-                // TODO: Why does this need to be an Option?
-                None => panic!("Cannot apply scan without a resulting view"),
+                None => panic!("Cannot apply Scan with an unknown return value."),
             },
             Update(i, value) => {
                 let mut new_state = state.clone();
