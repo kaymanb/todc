@@ -1,29 +1,45 @@
-//! A history.
+//! A sequence of operations applied to a shared object.
 use std::collections::VecDeque;
 use std::iter::repeat_with;
 use std::ops::{Index, IndexMut};
 
-type EntryID = usize;
+/// A identifier for an `Entry`
+pub type EntryId = usize;
 
+/// A process identifier.
+pub type ProcessId = usize;
+
+/// An action that occurs as part of an operation on a shared object.
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub enum Action<T> {
+    /// A `Call` indicates the beginning of an operation.
     Call(T),
+    /// A `Response` indicates the end of an operation.
     Response(T),
 }
 
+/// An entry in a history that represents the call to an operation.
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub struct CallEntry<T> {
-    pub id: EntryID,
+    /// The identifier for this `Entry`.
+    pub id: EntryId,
+    /// The operation being called.
     pub operation: T,
-    pub response: EntryID,
+    /// The identifier of the `Entry` that stores the response to this
+    /// operation.
+    pub response: EntryId,
 }
 
+/// An entry in a history that represents the response from an operation.
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub struct ResponseEntry<T> {
-    pub id: EntryID,
+    /// The identifier for this `Entry`.
+    pub id: EntryId,
+    /// The operation being responded to.
     pub operation: T,
 }
 
+/// An entry in a history.
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub enum Entry<T> {
     Call(CallEntry<T>),
@@ -31,7 +47,7 @@ pub enum Entry<T> {
 }
 
 impl<T> Entry<T> {
-    pub fn id(&self) -> EntryID {
+    pub fn id(&self) -> EntryId {
         match self {
             Entry::Call(entry) => entry.id,
             Entry::Response(entry) => entry.id,
@@ -39,20 +55,93 @@ impl<T> Entry<T> {
     }
 }
 
+/// A sequence of operations applied to a shared object.
+///
+/// A history is a sequence of operations that have been applied to a shared
+/// object. Each `Entry` in the history indicates either a call to or response
+/// from an operation performed by a specific process. It is possible for
+/// operations from different processes to be performed concurrently, which
+/// is modeled in a history by interleaving the call and response entries
+/// for those operations.
+///
+/// # Examples
+///
+/// Consider a history of operations performed on a shared register, where
+/// processes can write values, and read values that have been written.
+///
+/// In the following history processes 0 and 1 each perform a `Write`
+/// operation one after the other.
+///
+/// ```
+/// use std::matches;
+/// use todc_utils::{History, Action::{Call, Response}};
+/// use todc_utils::linearizability::history::Entry;
+/// use todc_utils::specifications::register::RegisterOperation::{Write};
+///
+/// let actions = vec![
+///     (0, Call(Write("Hello"))),
+///     (0, Response(Write("Hello"))),
+///     (1, Call(Write("World"))),
+///     (1, Response(Write("World"))),
+/// ];
+///
+/// let history = History::from_actions(actions);
+/// assert!(matches!(&history[0], Entry::Call(x)));
+/// ```
+///
+/// In the following history processes 0 and 1 perform their write operations
+/// concurrently. If we were dealing with an [atomic register](https://en.wikipedia.org/wiki/Atomic_semantics),
+/// then its contents after these operations were performed would be ambiguous,
+/// because either write could be linearized last.
+///
+/// ```
+/// # use std::matches;
+/// # use todc_utils::{History, Action::{Call, Response}};
+/// # use todc_utils::linearizability::history::Entry;
+/// # use todc_utils::specifications::register::RegisterOperation::{Write};
+/// let actions = vec![
+///     (0, Call(Write("Hello"))),
+///     (1, Call(Write("World"))),
+///     (0, Response(Write("Hello"))),
+///     (1, Response(Write("World"))),
+/// ];
+///
+/// let history = History::from_actions(actions);
+/// assert!(matches!(&history[0], Entry::Call(x)));
+/// ```
+///
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub struct History<T> {
-    pub entries: Vec<Entry<T>>,
+    pub(super) entries: Vec<Entry<T>>,
     // When an entry is removed from this history, its index is recorded here.
-    removed_from: Vec<Option<EntryID>>,
+    removed_from: Vec<Option<EntryId>>,
 }
 
 impl<T> History<T> {
+    /// Creates a history from a sequence of actions.
+    ///
     /// # Panics
     ///
     /// Panics if `actions` is empty.
-    /// Panics if the resulting history would be incomplete.
-    pub fn from_actions(actions: Vec<(usize, Action<T>)>) -> Self {
-        let (processes, actions): (Vec<usize>, Vec<Action<T>>) = actions.into_iter().unzip();
+    ///
+    /// Panics if the resulting history would be incomplete. That is, if there is some
+    /// `Call` action that does not have a corresponding `Response`.
+    ///
+    /// ```should_panic
+    /// # use std::matches;
+    /// # use todc_utils::{History, Action::{Call, Response}};
+    /// # use todc_utils::specifications::register::RegisterOperation::{Write};
+    /// let incomplete_actions = vec![
+    ///     (0, Call(Write("Hello"))),
+    ///     (1, Call(Write("World"))),
+    ///     (0, Response(Write("Hello"))),
+    ///     // <-- Missing response to the call by process 1!
+    /// ];
+    ///
+    /// let history = History::from_actions(incomplete_actions);
+    /// ```
+    pub fn from_actions(actions: Vec<(ProcessId, Action<T>)>) -> Self {
+        let (processes, actions): (Vec<ProcessId>, Vec<Action<T>>) = actions.into_iter().unzip();
 
         let num_processes = processes.iter().max().unwrap();
         let mut calls: Vec<VecDeque<usize>> = repeat_with(VecDeque::new)
@@ -87,7 +176,7 @@ impl<T> History<T> {
 
     // TODO: This operation is very expensive. Implementing History as a doubly-linked list could
     // greatly improve performance.
-    pub fn index_of_id(&self, id: EntryID) -> usize {
+    pub(super) fn index_of_id(&self, id: EntryId) -> usize {
         self.iter().position(|e| e.id() == id).unwrap()
     }
 
@@ -107,19 +196,19 @@ impl<T> History<T> {
         }
     }
 
-    pub fn is_empty(&self) -> bool {
+    pub(super) fn is_empty(&self) -> bool {
         self.entries.is_empty()
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = &Entry<T>> {
+    pub(super) fn iter(&self) -> impl Iterator<Item = &Entry<T>> {
         self.entries.iter()
     }
 
-    pub fn len(&self) -> usize {
+    pub(super) fn len(&self) -> usize {
         self.entries.len()
     }
 
-    pub fn lift(&mut self, i: usize) -> (Entry<T>, Entry<T>) {
+    pub(super) fn lift(&mut self, i: usize) -> (Entry<T>, Entry<T>) {
         match self.remove(i) {
             Entry::Response(_) => panic!("Cannot lift a response entry out of the history"),
             Entry::Call(call) => {
@@ -135,7 +224,7 @@ impl<T> History<T> {
         entry
     }
 
-    pub fn unlift(&mut self, call: Entry<T>, response: Entry<T>) -> (usize, usize) {
+    pub(super) fn unlift(&mut self, call: Entry<T>, response: Entry<T>) -> (usize, usize) {
         let response_index = self.insert(response);
         let call_index = self.insert(call);
         (call_index, response_index)

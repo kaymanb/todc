@@ -1,3 +1,4 @@
+//! A sequential specification of a [snapshot object](https://en.wikipedia.org/wiki/Shared_snapshot_objects).
 use core::array::from_fn;
 use std::fmt::Debug;
 use std::hash::Hash;
@@ -20,7 +21,7 @@ pub enum SnapshotOperation<T, const N: usize> {
     Update(ProcessID, T),
 }
 
-/// A specification of an `N`-process snapshot object.
+/// A specification of an `N`-process [snapshot object](https://en.wikipedia.org/wiki/Shared_snapshot_objects).
 ///
 /// Each component of the snapshot contains a value of type `T`.
 pub struct SnapshotSpecification<T: Clone + Debug + Default + Eq + Hash, const N: usize> {

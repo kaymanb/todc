@@ -1,3 +1,4 @@
+//! A sequential specification of an [etcd](https://etcd.io/) key-value store.
 use std::fs::File;
 use std::io::{self, BufRead};
 use std::path::Path;
@@ -18,7 +19,12 @@ where
     Ok(io::BufReader::new(file).lines())
 }
 
-/// Returns the history of an etcd server, as described by the input log file.
+/// Returns a history of operations performed on a etcd server being
+/// tested by [Jepsen](https://github.com/jepsen-io/jepsen).
+///
+/// The history is created by parsing logs from Jepsen. See
+/// [here](https://github.com/kaymanb/todc/blob/main/todc-utils/tests/linearizability/etcd/etcd_000.log)
+/// for an example of such a log file.
 pub fn history_from_log(filename: String) -> History<EtcdOperation> {
     let mut unknowns: Vec<(ProcessID, Action<EtcdOperation>)> = Vec::new();
     let mut actions: Vec<(ProcessID, Action<EtcdOperation>)> = Vec::new();

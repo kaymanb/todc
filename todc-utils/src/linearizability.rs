@@ -1,12 +1,5 @@
-//! Checking [linearizability](https://en.wikipedia.org/wiki/Linearizability) of a history of operations applied to a shared object.
-//!
-//! See _Testing for Linearizability_ by Gavin Lowe [\[L16\]](https://doi.org/10.1002/cpe.3928) and
-//! _Faster Linearizability Checking via P-Compositionality_ by Horn and Kroening
-//! [\[HK15\]](https://arxiv.org/abs/1504.00204).
-//!
-//! See [`linearizability-checker``](https://github.com/ahorn/linearizability-checker) for C++
-//! implementations of the algorithms contained in this module. For implementations in Go,
-//! see [`porcupine`](https://github.com/anishathalye/porcupine).
+//! Checking [linearizability](https://en.wikipedia.org/wiki/Linearizability) of a
+//! history of operations applied to a shared object.
 use std::collections::HashSet;
 
 use crate::linearizability::history::{Entry, History};
@@ -18,7 +11,9 @@ pub mod history;
 ///
 /// An implementation of the algorithm originally defined by Jeannette Wing and Chun Gong
 /// [\[WG93\]](https://www.cs.cmu.edu/~wing/publications/WingGong93.pdf), and
-/// extended by Gavin Lowe [\L16\]](https://www.cs.cmu.edu/~wing/publications/WingGong93.pdf).
+/// extended by Gavin Lowe [\[L17\]](http://www.cs.ox.ac.uk/people/gavin.lowe/LinearizabiltyTesting/).
+/// This particular implementation is based on the description given by Alex Horn
+/// and Daniel Kroenig [\[HK15\]](https://arxiv.org/abs/1504.00204).
 ///
 /// Given a history of operations, the algorithm works by linearizing each operation
 /// as soon as possible. When an operation cannot be linearized, it backtracks and
@@ -27,9 +22,10 @@ pub mod history;
 /// is already known that the state of the object and remaining operations have no
 /// valid linearization.
 ///
+///
 /// # Examples
 ///
-/// Consider the following specification of a register containing `i32` values.
+/// Consider the following specification of a register containing `u32` values.
 ///
 /// ```
 /// use todc_utils::specifications::Specification;
@@ -71,11 +67,8 @@ pub mod history;
 /// #     Read(u32),
 /// #     Write(u32),
 /// # }
-///
 /// # use RegisterOp::*;
-///
 /// # struct RegisterSpec;
-///
 /// # impl Specification for RegisterSpec {
 /// #     type State = u32;
 /// #     type Operation = RegisterOp;
@@ -83,7 +76,6 @@ pub mod history;
 /// #     fn init(&self) -> Self::State {
 /// #         0
 /// #     }
-///
 /// #     fn apply(&self, operation: &Self::Operation, state: &Self::State) -> (bool, Self::State) {
 /// #         match operation {
 /// #             Read(value) => (value == state, *state),
@@ -104,19 +96,16 @@ pub mod history;
 ///
 /// If the second process performs a read that returns an invalid value, we can
 /// check that the corresponding history is **not** linearizable as well.
+///
 /// ```
 /// # use todc_utils::specifications::Specification;
-///
 /// # #[derive(Copy, Clone, Debug)]
 /// # enum RegisterOp {
 /// #     Read(u32),
 /// #     Write(u32),
 /// # }
-///
 /// # use RegisterOp::*;
-///
 /// # struct RegisterSpec;
-///
 /// # impl Specification for RegisterSpec {
 /// #     type State = u32;
 /// #     type Operation = RegisterOp;
@@ -124,7 +113,6 @@ pub mod history;
 /// #     fn init(&self) -> Self::State {
 /// #         0
 /// #     }
-///
 /// #     fn apply(&self, operation: &Self::Operation, state: &Self::State) -> (bool, Self::State) {
 /// #         match operation {
 /// #             Read(value) => (value == state, *state),
@@ -132,17 +120,20 @@ pub mod history;
 /// #         }
 /// #     }
 /// # }
-///
 /// # use todc_utils::linearizability::{WGLChecker, history::{History, Action::{Call, Response}}};
-///
 /// let history = History::from_actions(vec![
 ///     (0, Call(Write(1))),
 ///     (0, Response(Write(1))),
-///     (1, Call(Read(2))),
-///     (1, Response(Read(2))),
+///     (1, Call(Read(42))),
+///     (1, Response(Read(42))),
 /// ]);
 /// assert!(!WGLChecker::is_linearizable(RegisterSpec, history));
 /// ```
+///
+/// # Implementations in Other Languages
+///
+/// For an implementation in C++, see [`linearizability-checker`](https://github.com/ahorn/linearizability-checker).
+/// For an implementation in Go, see [`porcupine`](https://github.com/anishathalye/porcupine).
 pub struct WGLChecker {}
 
 type OperationEntry<S> = Entry<<S as Specification>::Operation>;

@@ -1,3 +1,3 @@
 # todc-utils
 
-Utilities for working with distributed systems.
+Utilities for writing and testing distributed algorithms.

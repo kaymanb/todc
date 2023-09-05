@@ -1,3 +1,4 @@
+//! A sequential specification of a register.
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::marker::PhantomData;
