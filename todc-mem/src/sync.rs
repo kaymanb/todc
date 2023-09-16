@@ -1,4 +1,10 @@
-#[cfg(loom)]
-pub(crate) use loom::sync::Mutex;
-#[cfg(not(loom))]
-pub(crate) use std::sync::Mutex;
+#[cfg(feature = "shuttle")]
+pub(crate) use shuttle::sync::{
+    atomic::{AtomicBool, AtomicU64, Ordering},
+    Mutex,
+};
+#[cfg(not(feature = "shuttle"))]
+pub(crate) use std::sync::{
+    atomic::{AtomicBool, AtomicU64, Ordering},
+    Mutex,
+};

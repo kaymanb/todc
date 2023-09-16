@@ -1,205 +1,67 @@
-use std::sync::Arc;
+use super::common::{
+    assert_random_operations_are_linearizable, NUM_ITERATIONS, NUM_PREEMPTIONS, NUM_THREADS,
+};
 
-use loom::{sync::Mutex, thread};
-use todc_utils::linearizability::{history::History, WLGChecker};
-use todc_utils::specifications::snapshot::SnapshotSpecification;
-
-use crate::{RecordingSnapshot, TimedAction, NUM_THREADS};
-
-// TODO: Reduce code duplication between these tests...
-mod unbounded_atomic_snapshot {
-    use todc_mem::snapshot::aad_plus_93::UnboundedAtomicSnapshot;
-
+mod unbounded {
     use super::*;
+    use todc_mem::snapshot::aad_plus_93::{UnboundedAtomicSnapshot, UnboundedMutexSnapshot};
 
-    type ActionUnderTest = TimedAction<u8, NUM_THREADS>;
-    type SnapshotUnderTest = RecordingSnapshot<NUM_THREADS, UnboundedAtomicSnapshot<NUM_THREADS>>;
+    type MutexSnapshot = UnboundedMutexSnapshot<u32, NUM_THREADS>;
+    type AtomicSnapshot = UnboundedAtomicSnapshot<NUM_THREADS>;
 
+    #[cfg(feature = "shuttle")]
     #[test]
-    fn test_one_shot_correctness() {
-        loom::model(|| {
-            let actions: Arc<Mutex<Vec<ActionUnderTest>>> = Arc::new(Mutex::new(vec![]));
-            let mut handles = Vec::new();
-            let snapshot: Arc<SnapshotUnderTest> = Arc::new(RecordingSnapshot::new());
+    fn mutex_snapshot_is_linearizable() {
+        shuttle::check_pct(
+            || {
+                assert_random_operations_are_linearizable::<NUM_THREADS, MutexSnapshot>();
+            },
+            NUM_ITERATIONS,
+            NUM_PREEMPTIONS,
+        );
+    }
 
-            for i in 0..NUM_THREADS {
-                let actions = actions.clone();
-                let snapshot = snapshot.clone();
-                handles.push(thread::spawn(move || {
-                    let (update_call, update_resp) = snapshot.update(i, (i + 1) as u8);
-                    let (scan_call, scan_resp) = snapshot.scan(i);
-                    for action in [update_call, update_resp, scan_call, scan_resp] {
-                        let mut actions = actions.lock().unwrap();
-                        actions.push(action);
-                    }
-                }));
-            }
-
-            for handle in handles {
-                handle.join().unwrap();
-            }
-
-            let actions = &mut *actions.lock().unwrap();
-            actions.sort_by(|a, b| a.happened_at.cmp(&b.happened_at));
-            let history = History::from_actions(
-                actions
-                    .iter()
-                    .map(|ta| (ta.process, ta.action.clone()))
-                    .collect(),
-            );
-            // TODO: Check that all possible histories are being generated...
-            assert!(WLGChecker::is_linearizable(
-                SnapshotSpecification::init(),
-                history
-            ));
-        });
+    #[cfg(feature = "shuttle")]
+    #[test]
+    fn atomic_snapshot_is_linearizable() {
+        shuttle::check_pct(
+            || {
+                assert_random_operations_are_linearizable::<NUM_THREADS, AtomicSnapshot>();
+            },
+            NUM_ITERATIONS,
+            NUM_PREEMPTIONS,
+        );
     }
 }
 
-// TODO: Can probably just remove mutex tests...
-mod unbounded_mutex_snapshot {
-    use todc_mem::snapshot::aad_plus_93::UnboundedMutexSnapshot;
-
+mod bounded {
     use super::*;
+    use todc_mem::snapshot::aad_plus_93::{BoundedAtomicSnapshot, BoundedMutexSnapshot};
 
-    type ActionUnderTest = TimedAction<Option<usize>, NUM_THREADS>;
-    type SnapshotUnderTest =
-        RecordingSnapshot<NUM_THREADS, UnboundedMutexSnapshot<Option<usize>, NUM_THREADS>>;
+    type MutexSnapshot = BoundedMutexSnapshot<u32, NUM_THREADS>;
+    type AtomicSnapshot = BoundedAtomicSnapshot<NUM_THREADS>;
 
+    #[cfg(feature = "shuttle")]
     #[test]
-    fn test_one_shot_correctness() {
-        loom::model(|| {
-            let actions: Arc<Mutex<Vec<ActionUnderTest>>> = Arc::new(Mutex::new(vec![]));
-            let mut handles = Vec::new();
-            let snapshot: Arc<SnapshotUnderTest> = Arc::new(RecordingSnapshot::new());
-
-            for i in 0..NUM_THREADS {
-                let actions = actions.clone();
-                let snapshot = snapshot.clone();
-                handles.push(thread::spawn(move || {
-                    let (update_call, update_resp) = snapshot.update(i, Some(i + 1));
-                    let (scan_call, scan_resp) = snapshot.scan(i);
-                    for action in [update_call, update_resp, scan_call, scan_resp] {
-                        let mut actions = actions.lock().unwrap();
-                        actions.push(action);
-                    }
-                }));
-            }
-
-            for handle in handles {
-                handle.join().unwrap();
-            }
-
-            let actions = &mut *actions.lock().unwrap();
-            actions.sort_by(|a, b| a.happened_at.cmp(&b.happened_at));
-            let history = History::from_actions(
-                actions
-                    .iter()
-                    .map(|ta| (ta.process, ta.action.clone()))
-                    .collect(),
-            );
-            // TODO: Check that all possible histories are being generated...
-            assert!(WLGChecker::is_linearizable(
-                SnapshotSpecification::init(),
-                history
-            ));
-        });
+    fn mutex_snapshot_is_linearizable() {
+        shuttle::check_pct(
+            || {
+                assert_random_operations_are_linearizable::<NUM_THREADS, MutexSnapshot>();
+            },
+            NUM_ITERATIONS,
+            NUM_PREEMPTIONS,
+        );
     }
-}
 
-mod bounded_atomic_snapshot {
-    use super::*;
-    use todc_mem::snapshot::aad_plus_93::BoundedAtomicSnapshot;
-
-    type ActionUnderTest = TimedAction<u8, NUM_THREADS>;
-    type SnapshotUnderTest = RecordingSnapshot<NUM_THREADS, BoundedAtomicSnapshot<NUM_THREADS>>;
-
+    #[cfg(feature = "shuttle")]
     #[test]
-    fn test_one_shot_correctness() {
-        loom::model(|| {
-            let actions: Arc<Mutex<Vec<ActionUnderTest>>> = Arc::new(Mutex::new(vec![]));
-            let mut handles = Vec::new();
-            let snapshot: Arc<SnapshotUnderTest> = Arc::new(RecordingSnapshot::new());
-
-            for i in 0..NUM_THREADS {
-                let actions = actions.clone();
-                let snapshot = snapshot.clone();
-                handles.push(thread::spawn(move || {
-                    let (update_call, update_resp) = snapshot.update(i, (i + 1) as u8);
-                    let (scan_call, scan_resp) = snapshot.scan(i);
-                    for action in [update_call, update_resp, scan_call, scan_resp] {
-                        let mut actions = actions.lock().unwrap();
-                        actions.push(action);
-                    }
-                }));
-            }
-
-            for handle in handles {
-                handle.join().unwrap();
-            }
-
-            let actions = &mut *actions.lock().unwrap();
-            actions.sort_by(|a, b| a.happened_at.cmp(&b.happened_at));
-            let history = History::from_actions(
-                actions
-                    .iter()
-                    .map(|ta| (ta.process, ta.action.clone()))
-                    .collect(),
-            );
-            // TODO: Check that all possible histories are being generated...
-            assert!(WLGChecker::is_linearizable(
-                SnapshotSpecification::init(),
-                history
-            ));
-        });
-    }
-}
-
-mod bounded_mutex_snapshot {
-    use super::*;
-    use todc_mem::snapshot::aad_plus_93::BoundedMutexSnapshot;
-
-    type ActionUnderTest = TimedAction<Option<usize>, NUM_THREADS>;
-    type SnapshotUnderTest =
-        RecordingSnapshot<NUM_THREADS, BoundedMutexSnapshot<Option<usize>, NUM_THREADS>>;
-
-    #[test]
-    fn test_one_shot_correctness() {
-        loom::model(|| {
-            let actions: Arc<Mutex<Vec<ActionUnderTest>>> = Arc::new(Mutex::new(vec![]));
-            let mut handles = Vec::new();
-            let snapshot: Arc<SnapshotUnderTest> = Arc::new(RecordingSnapshot::new());
-
-            for i in 0..NUM_THREADS {
-                let actions = actions.clone();
-                let snapshot = snapshot.clone();
-                handles.push(thread::spawn(move || {
-                    let (update_call, update_resp) = snapshot.update(i, Some(i + 1));
-                    let (scan_call, scan_resp) = snapshot.scan(i);
-                    for action in [update_call, update_resp, scan_call, scan_resp] {
-                        let mut actions = actions.lock().unwrap();
-                        actions.push(action);
-                    }
-                }));
-            }
-
-            for handle in handles {
-                handle.join().unwrap();
-            }
-
-            let actions = &mut *actions.lock().unwrap();
-            actions.sort_by(|a, b| a.happened_at.cmp(&b.happened_at));
-            let history = History::from_actions(
-                actions
-                    .iter()
-                    .map(|ta| (ta.process, ta.action.clone()))
-                    .collect(),
-            );
-            // TODO: Check that all possible histories are being generated...
-            assert!(WLGChecker::is_linearizable(
-                SnapshotSpecification::init(),
-                history
-            ));
-        });
+    fn atomic_snapshot_is_linearizable() {
+        shuttle::check_pct(
+            || {
+                assert_random_operations_are_linearizable::<NUM_THREADS, AtomicSnapshot>();
+            },
+            NUM_ITERATIONS,
+            NUM_PREEMPTIONS,
+        );
     }
 }

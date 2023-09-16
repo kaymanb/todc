@@ -1,9 +1,9 @@
 use core::array::from_fn;
 use std::fmt::Debug;
-use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::register::{AtomicRegister, MutexRegister, Register};
 use crate::snapshot::Snapshot;
+use crate::sync::{AtomicBool, Ordering};
 
 pub type BoundedMutexSnapshot<T, const N: usize> =
     BoundedSnapshot<MutexRegister<BoundedContents<T, N>>, N>;

@@ -49,7 +49,7 @@ type EmptyResult = Result<(), Box<dyn Error>>;
 ///
 /// # Panics
 ///
-/// Panics if the history of register operations are is not linearizable.
+/// Panics if the history of register operations is not linearizable.
 fn assert_linearizable<T>(mut actions: Vec<RecordedAction<T>>)
 where
     T: Clone + Debug + Default + Eq + Hash,

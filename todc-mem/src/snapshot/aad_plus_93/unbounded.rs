@@ -3,7 +3,7 @@ use core::array::from_fn;
 use num::{One, PrimInt, Unsigned};
 
 use crate::register::{AtomicRegister, MutexRegister, Register};
-use crate::snapshot::{ProcessId, Snapshot};
+use crate::snapshot::Snapshot;
 
 /// A wait-free `N`-process single-writer multi-reader atomic snapshot.
 ///

@@ -1,5 +1,6 @@
 use std::marker::PhantomData;
-use std::sync::atomic::{AtomicU64, Ordering};
+
+use crate::sync::{AtomicU64, Ordering};
 
 use super::Register;
 
@@ -99,8 +100,7 @@ use super::Register;
 ///         // -- snipped --
 /// #       let bytes: Vec<u8> = value.to_be_bytes()
 /// #           .into_iter()
-/// #           .filter(|&&x| x != u8::MAX)
-/// #           .map(|x| *x)
+/// #           .filter(|&x| x != u8::MAX)
 /// #           .collect();
 /// #       let mut result: String<8> = String::from("");
 /// #       if let Ok(string) = std::str::from_utf8(&bytes[..]) {
