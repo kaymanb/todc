@@ -8,7 +8,8 @@ use crate::specifications::Specification;
 
 use SnapshotOperation::{Scan, Update};
 
-pub type ProcessID = usize;
+/// A process identifier.
+pub type ProcessId = usize;
 
 /// An operation for a snapshot object.
 #[derive(Debug, Copy, Clone)]
@@ -17,8 +18,9 @@ pub enum SnapshotOperation<T, const N: usize> {
     ///
     /// If the return value of a scan is not-yet-known, this can be represented
     /// as `Scan(pid, None)`.
-    Scan(ProcessID, Option<[T; N]>),
-    Update(ProcessID, T),
+    Scan(ProcessId, Option<[T; N]>),
+    /// Update the component of the object belonging to this process.
+    Update(ProcessId, T),
 }
 
 /// A specification of an `N`-process [snapshot object](https://en.wikipedia.org/wiki/Shared_snapshot_objects).

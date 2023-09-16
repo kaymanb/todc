@@ -3,7 +3,7 @@ use std::collections::VecDeque;
 use std::iter::repeat_with;
 use std::ops::{Index, IndexMut};
 
-/// A identifier for an `Entry`
+/// A identifier for an [`Entry`]
 pub type EntryId = usize;
 
 /// A process identifier.
@@ -21,11 +21,11 @@ pub enum Action<T> {
 /// An entry in a history that represents the call to an operation.
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub struct CallEntry<T> {
-    /// The identifier for this `Entry`.
+    /// The identifier for this [`CallEntry`].
     pub id: EntryId,
     /// The operation being called.
     pub operation: T,
-    /// The identifier of the `Entry` that stores the response to this
+    /// The identifier of the [`ResponseEntry`] that stores the response to this
     /// operation.
     pub response: EntryId,
 }
@@ -33,7 +33,7 @@ pub struct CallEntry<T> {
 /// An entry in a history that represents the response from an operation.
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub struct ResponseEntry<T> {
-    /// The identifier for this `Entry`.
+    /// The identifier for this [`ResponseEntry`].
     pub id: EntryId,
     /// The operation being responded to.
     pub operation: T,
@@ -47,6 +47,7 @@ pub enum Entry<T> {
 }
 
 impl<T> Entry<T> {
+    /// Returns a unique identifier for this [`Entry`].
     pub fn id(&self) -> EntryId {
         match self {
             Entry::Call(entry) => entry.id,
@@ -58,7 +59,7 @@ impl<T> Entry<T> {
 /// A sequence of operations applied to a shared object.
 ///
 /// A history is a sequence of operations that have been applied to a shared
-/// object. Each `Entry` in the history indicates either a call to or response
+/// object. Each [`Entry`] in the history indicates either a call to or response
 /// from an operation performed by a specific process. It is possible for
 /// operations from different processes to be performed concurrently, which
 /// is modeled in a history by interleaving the call and response entries
@@ -67,49 +68,62 @@ impl<T> Entry<T> {
 /// # Examples
 ///
 /// Consider a history of operations performed on a shared register, where
-/// processes can write values, and read values that have been written.
-///
-/// In the following history processes 0 and 1 each perform a `Write`
-/// operation one after the other.
+/// processes can write values and read values that have been written. In
+/// the following example process `P0` performs a write, after which process
+/// `P1` performs a read.
 ///
 /// ```
 /// use std::matches;
 /// use todc_utils::{History, Action::{Call, Response}};
 /// use todc_utils::linearizability::history::Entry;
-/// use todc_utils::specifications::register::RegisterOperation::{Write};
+/// use todc_utils::specifications::register::RegisterOperation::{Read, Write};
 ///
+/// // P0 |--------|            Write("Hello, World!")
+/// // P1            |--------| Read("Hello, World!")
 /// let actions = vec![
-///     (0, Call(Write("Hello"))),
-///     (0, Response(Write("Hello"))),
-///     (1, Call(Write("World"))),
-///     (1, Response(Write("World"))),
+///     (0, Call(Write("Hello, World!"))),
+///     (0, Response(Write("World, World!"))),
+///     (1, Call(Read(None))),
+///     (1, Response(Read(Some("Hello, World!")))),
 /// ];
 ///
 /// let history = History::from_actions(actions);
 /// assert!(matches!(&history[0], Entry::Call(x)));
 /// ```
 ///
-/// In the following history processes 0 and 1 perform their write operations
-/// concurrently. If we were dealing with an [atomic register](https://en.wikipedia.org/wiki/Atomic_semantics),
-/// then its contents after these operations were performed would be ambiguous,
-/// because either write could be linearized last.
+/// In the next example processes `P0`, `P1`, and `P2` each perform
+/// a write while `P3` performs three reads. Notice that the reads performed by
+/// `P3` occur concurrently with the writes performed by other processes.
 ///
 /// ```
 /// # use std::matches;
 /// # use todc_utils::{History, Action::{Call, Response}};
 /// # use todc_utils::linearizability::history::Entry;
-/// # use todc_utils::specifications::register::RegisterOperation::{Write};
+/// # use todc_utils::specifications::register::RegisterOperation::{Read, Write};
+/// // P0 |--------------------| Write(0)
+/// // P1 |--------------------| Write(1)
+/// // P2 |--------------------| Write(2)
+/// // P3   |--|                 Read(2)
+/// // P3          |--|          Read(1)
+/// // P3                 |--|   Read(0)
 /// let actions = vec![
-///     (0, Call(Write("Hello"))),
-///     (1, Call(Write("World"))),
-///     (0, Response(Write("Hello"))),
-///     (1, Response(Write("World"))),
+///     (0, Call(Write(0))),
+///     (1, Call(Write(1))),
+///     (2, Call(Write(2))),
+///     (3, Call(Read(None))),
+///     (3, Response(Read(Some(2)))),
+///     (3, Call(Read(None))),
+///     (3, Response(Read(Some(1)))),
+///     (3, Call(Read(None))),
+///     (3, Response(Read(Some(0)))),
+///     (0, Response(Write(0))),
+///     (1, Response(Write(1))),
+///     (2, Response(Write(2))),
 /// ];
 ///
 /// let history = History::from_actions(actions);
 /// assert!(matches!(&history[0], Entry::Call(x)));
 /// ```
-///
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub struct History<T> {
     pub(super) entries: Vec<Entry<T>>,

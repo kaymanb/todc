@@ -1,11 +1,11 @@
-//! A sequential specification of a register.
+//! A sequential specification of a [register](https://en.wikipedia.org/wiki/Shared_register).
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::marker::PhantomData;
 
 use crate::specifications::Specification;
 
-/// An operation for a register.
+/// An operation for a [register](https://en.wikipedia.org/wiki/Shared_register).
 #[derive(Debug, Copy, Clone)]
 pub enum RegisterOperation<T> {
     /// Read a value of type `T` from the register.
@@ -19,7 +19,7 @@ pub enum RegisterOperation<T> {
 
 use RegisterOperation::*;
 
-/// A sequential specification of a register.
+/// A sequential specification of a [register](https://en.wikipedia.org/wiki/Shared_register).
 pub struct RegisterSpecification<T: Default + Eq> {
     data_type: PhantomData<T>,
 }

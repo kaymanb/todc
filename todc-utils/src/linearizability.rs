@@ -1,5 +1,7 @@
 //! Checking [linearizability](https://en.wikipedia.org/wiki/Linearizability) of a
 //! history of operations applied to a shared object.
+//!
+//! For more information, see the documentation of the [`WGLChecker`] and [`History`] structs.
 use std::collections::HashSet;
 
 use crate::linearizability::history::{Entry, History};
@@ -25,7 +27,7 @@ pub mod history;
 ///
 /// # Examples
 ///
-/// Consider the following specification of a register containing `u32` values.
+/// Consider the following [`Specification`] of a register containing `u32` values.
 ///
 /// ```
 /// use todc_utils::specifications::Specification;
