@@ -43,8 +43,8 @@ pub fn history_from_log(filename: String) -> History<EtcdOperation> {
 
         let process: usize = words[3].parse().unwrap();
         // Logs are marked with :info when the success of the operation is unknown. It
-        // suffices to consider a history where all such operation succeed, but where the
-        // Okay response for each operation occurs at the very end of the history.
+        // suffices to consider a history where all such operations eventually finish,
+        // but at the very end of the history.
         // See: https://aphyr.com/posts/316-jepsen-etcd-and-consul#writing-a-client
         if words[4] == ":info" {
             let (_, call) = actions
@@ -57,7 +57,7 @@ pub fn history_from_log(filename: String) -> History<EtcdOperation> {
                 Action::Call(operation) => match operation {
                     // Reads are a special case, in that they do not affect the state of the
                     // object. Instead of the operations success being unknown, they can simply
-                    // be treated as having failed, and should be marked as such in the logs.
+                    // be treated as having failed, and we expect them to be marked as such in the logs.
                     Read(_, _) => panic!("Success of read operation cannot be unknown"),
                     Write(_, value) => Write(Unknown, value),
                     CompareAndSwap(_, cas) => CompareAndSwap(Unknown, cas),
@@ -115,7 +115,7 @@ impl EtcdStatus {
 
 use EtcdStatus::*;
 
-/// An etcd operation.
+/// An etcd operation containing [`u32`] values.
 #[derive(Debug, Copy, Clone)]
 pub enum EtcdOperation {
     Read(EtcdStatus, Option<u32>),
@@ -154,19 +154,19 @@ use EtcdOperation::*;
 /// A sequential specification of an [etcd](https://etcd.io/) key-value store.
 ///
 /// The specification allows for reads, writes, and compare-and-swap (CAS) operations to be
-/// performed on a single shared register. In practice, etcd stores exposes many such registers,
-/// each indexed by unique key.
+/// performed on a single shared register containing [`u32`] values. In practice, etcd
+/// stores exposes many such registers, each indexed by unique key.
 pub struct EtcdSpecification;
 
 impl Specification for EtcdSpecification {
     type State = Option<u32>;
     type Operation = EtcdOperation;
 
-    fn init(&self) -> Self::State {
+    fn init() -> Self::State {
         None
     }
 
-    fn apply(&self, operation: &Self::Operation, state: &Self::State) -> (bool, Self::State) {
+    fn apply(operation: &Self::Operation, state: &Self::State) -> (bool, Self::State) {
         match operation {
             Read(status, value) => match status {
                 Okay => (value == state, *state),
@@ -174,10 +174,13 @@ impl Specification for EtcdSpecification {
                 _ => panic!("Cannot apply read that has not succeeded or failed"),
             },
             Write(status, value) => match status {
-                // TODO: Explain this...
                 Invoke => panic!("Cannot apply write that has only been invoked"),
                 Okay => (true, Some(*value)),
                 Fail => (true, *state),
+                // A write whose status is unknown can be assumed to have completed
+                // successfuly. If, in reality, the write failed, then the result
+                // is indistinguishable to a success at the very end of a sequence
+                // of operations.
                 Unknown => (true, Some(*value)),
             },
             CompareAndSwap(status, (compare, swap)) => {
@@ -189,9 +192,63 @@ impl Specification for EtcdSpecification {
                     Invoke => panic!("Cannot apply CAS that has only been invoked"),
                     Okay => (success, if success { Some(*swap) } else { *state }),
                     Fail => (!success, *state),
+                    // A CAS whose status is unkown can be assumed to have completed
+                    // successfuly, for the same reason as explained above for writes.
                     Unknown => (true, if success { Some(*swap) } else { *state }),
                 }
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    type Spec = EtcdSpecification;
+
+    mod init {
+        use super::*;
+
+        #[test]
+        fn initializes_state_to_none() {
+            assert_eq!(Spec::init(), None);
+        }
+    }
+
+    mod apply {
+        use super::*;
+
+        #[test]
+        fn read_does_not_mutate_state() {
+            let (_, new_state) = Spec::apply(&Read(Okay, None), &Spec::init());
+            assert_eq!(new_state, Spec::init());
+        }
+
+        #[test]
+        fn read_of_state_is_valid() {
+            let state = Some(42);
+            let (is_valid, _) = Spec::apply(&Read(Okay, state), &state);
+            assert!(is_valid);
+        }
+
+        #[test]
+        fn read_of_bad_value_is_invalid() {
+            let (is_valid, _) = Spec::apply(&Read(Okay, Some(42)), &None);
+            assert!(!is_valid);
+        }
+
+        #[test]
+        fn write_sets_new_state_to_written_value() {
+            let value = 123;
+            let (_, new_state) = Spec::apply(&Write(Okay, value), &Spec::init());
+            assert_eq!(new_state, Some(value));
+        }
+
+        #[test]
+        fn cas_of_bad_value_is_invalid() {
+            let (is_valid, _) = Spec::apply(&CompareAndSwap(Okay, (1, 2)), &None);
+            assert!(!is_valid);
         }
     }
 }

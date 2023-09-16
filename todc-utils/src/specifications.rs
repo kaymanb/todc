@@ -32,11 +32,11 @@ pub mod snapshot;
 ///     type State = u32;
 ///     type Operation = RegisterOp;
 ///     
-///     fn init(&self) -> Self::State {
+///     fn init() -> Self::State {
 ///         0
 ///     }
 ///
-///     fn apply(&self, operation: &Self::Operation, state: &Self::State) -> (bool, Self::State) {
+///     fn apply(operation: &Self::Operation, state: &Self::State) -> (bool, Self::State) {
 ///         match operation {
 ///             Read(value) => (value == state, *state),
 ///             Write(value) => (true, *value),
@@ -61,22 +61,21 @@ pub mod snapshot;
 /// #     type State = u32;
 /// #     type Operation = RegisterOp;
 /// #     
-/// #     fn init(&self) -> Self::State {
+/// #     fn init() -> Self::State {
 /// #         0
 /// #     }
-/// #     fn apply(&self, operation: &Self::Operation, state: &Self::State) -> (bool, Self::State) {
+/// #     fn apply(operation: &Self::Operation, state: &Self::State) -> (bool, Self::State) {
 /// #         match operation {
 /// #             Read(value) => (value == state, *state),
 /// #             Write(value) => (true, *value),
 /// #         }
 /// #     }
 /// # }
-/// let spec = RegisterSpec {};
-/// let (is_valid, new_state) = spec.apply(&Write(1), &spec.init());
+/// let (is_valid, new_state) = RegisterSpec::apply(&Write(1), &RegisterSpec::init());
 /// assert!(is_valid);
 /// assert_eq!(new_state, 1);
 ///
-/// let (is_valid, new_state) = spec.apply(&Read(1), &new_state);
+/// let (is_valid, new_state) = RegisterSpec::apply(&Read(1), &new_state);
 /// assert!(is_valid);
 /// assert_eq!(new_state, 1);
 /// ```
@@ -97,19 +96,18 @@ pub mod snapshot;
 /// #     type State = u32;
 /// #     type Operation = RegisterOp;
 /// #     
-/// #     fn init(&self) -> Self::State {
+/// #     fn init() -> Self::State {
 /// #         0
 /// #     }
-/// #     fn apply(&self, operation: &Self::Operation, state: &Self::State) -> (bool, Self::State) {
+/// #     fn apply(operation: &Self::Operation, state: &Self::State) -> (bool, Self::State) {
 /// #         match operation {
 /// #             Read(value) => (value == state, *state),
 /// #             Write(value) => (true, *value),
 /// #         }
 /// #     }
 /// # }
-/// let spec = RegisterSpec {};
-/// let (_, new_state) = spec.apply(&Write(1), &spec.init());
-/// let (is_valid, _) = spec.apply(&Read(42), &new_state);
+/// let (_, new_state) = RegisterSpec::apply(&Write(1), &RegisterSpec::init());
+/// let (is_valid, _) = RegisterSpec::apply(&Read(42), &new_state);
 /// assert!(!is_valid);
 /// ```
 
@@ -118,11 +116,11 @@ pub trait Specification {
     type Operation: Clone + Debug;
 
     /// Returns an initial state for the object.
-    fn init(&self) -> Self::State;
+    fn init() -> Self::State;
 
     /// Returns whether applying an operation to a given state is valid, and
     /// the new state that occurs after the operation has been applied.
     ///
     /// If the operation is not valid, then the state of the object should not change.
-    fn apply(&self, op: &Self::Operation, state: &Self::State) -> (bool, Self::State);
+    fn apply(op: &Self::Operation, state: &Self::State) -> (bool, Self::State);
 }

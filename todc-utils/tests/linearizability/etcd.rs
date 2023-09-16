@@ -1,6 +1,8 @@
 use todc_utils::linearizability::WGLChecker;
 use todc_utils::specifications::etcd::{history_from_log, EtcdSpecification};
 
+type EtcdChecker = WGLChecker<EtcdSpecification>;
+
 #[macro_export]
 macro_rules! etcd_tests {
     ( $($name:ident: $values:expr,)* )=> {
@@ -11,7 +13,7 @@ macro_rules! etcd_tests {
                 let history = history_from_log(
                     format!("tests/linearizability/etcd/etcd_{}.log", log_number)
                 );
-                let result = WGLChecker::is_linearizable(EtcdSpecification, history);
+                let result = EtcdChecker::is_linearizable(history);
                 assert_eq!(result, expected_result);
             }
         )*

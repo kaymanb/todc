@@ -30,26 +30,17 @@ pub struct SnapshotSpecification<T: Clone + Debug + Default + Eq + Hash, const N
     data_type: PhantomData<T>,
 }
 
-impl<T: Clone + Debug + Default + Eq + Hash, const N: usize> SnapshotSpecification<T, N> {
-    // Required so that the phantom field data_type can be instantiated.
-    pub fn init() -> Self {
-        Self {
-            data_type: PhantomData,
-        }
-    }
-}
-
 impl<T: Clone + Debug + Default + Eq + Hash, const N: usize> Specification
     for SnapshotSpecification<T, N>
 {
     type State = [T; N];
     type Operation = SnapshotOperation<T, N>;
 
-    fn init(&self) -> Self::State {
+    fn init() -> Self::State {
         from_fn(|_| T::default())
     }
 
-    fn apply(&self, operation: &Self::Operation, state: &Self::State) -> (bool, Self::State) {
+    fn apply(operation: &Self::Operation, state: &Self::State) -> (bool, Self::State) {
         match operation {
             Scan(_, result) => match result {
                 Some(view) => (view == state, state.clone()),
@@ -68,13 +59,14 @@ impl<T: Clone + Debug + Default + Eq + Hash, const N: usize> Specification
 mod tests {
     use super::{SnapshotOperation::*, SnapshotSpecification, Specification};
 
+    type Spec = SnapshotSpecification<u32, 3>;
+
     mod init {
         use super::*;
 
         #[test]
         fn returns_array_of_defaults() {
-            let spec = SnapshotSpecification::<u32, 3>::init();
-            let state = spec.init();
+            let state = Spec::init();
             assert_eq!(state, [u32::default(), u32::default(), u32::default()]);
         }
     }
@@ -85,21 +77,11 @@ mod tests {
         type Value = u32;
         const NUM_PROCESSES: usize = 3;
 
-        fn setup() -> (
-            SnapshotSpecification<Value, NUM_PROCESSES>,
-            [Value; NUM_PROCESSES],
-        ) {
-            let spec = SnapshotSpecification::<Value, NUM_PROCESSES>::init();
-            let state = spec.init();
-            (spec, state)
-        }
-
         #[test]
         fn update_applied_to_proper_component() {
             let id = 1;
             let value = 123;
-            let (spec, state) = setup();
-            let (_, new_state) = spec.apply(&Update(id, value), &state);
+            let (_, new_state) = Spec::apply(&Update(id, value), &Spec::init());
             assert_eq!(new_state[id], value);
             for i in [0, 2] {
                 assert_eq!(new_state[i], Value::default());
@@ -108,26 +90,23 @@ mod tests {
 
         #[test]
         fn update_always_valid() {
-            let (spec, state) = setup();
             for i in 0..NUM_PROCESSES {
-                let (valid, _) = spec.apply(&Update(i, i as u32), &state);
+                let (valid, _) = Spec::apply(&Update(i, i as u32), &Spec::init());
                 assert!(valid);
             }
         }
 
         #[test]
         fn scan_doesnt_affect_state() {
-            let (spec, state) = setup();
-            let (_, new_state) = spec.apply(&Scan(0, Some([0, 0, 0])), &state);
-            assert_eq!(state, new_state);
+            let (_, new_state) = Spec::apply(&Scan(0, Some([0, 0, 0])), &Spec::init());
+            assert_eq!(Spec::init(), new_state);
         }
 
         #[test]
         fn scan_not_valid_if_differs_from_state() {
-            let (spec, state) = setup();
-            let mut new_state = state.clone();
+            let mut new_state = Spec::init().clone();
             new_state[0] = 123;
-            let (valid, _) = spec.apply(&Scan(0, Some(new_state)), &state);
+            let (valid, _) = Spec::apply(&Scan(0, Some(new_state)), &Spec::init());
             assert!(!valid);
         }
     }
