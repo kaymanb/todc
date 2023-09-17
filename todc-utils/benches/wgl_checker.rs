@@ -10,10 +10,10 @@ const LOG_FILE: &str = "benches/static/etcd_log_005.log";
 // Checks that a relatively complex `etcd` history is in-fact linearizable.
 fn criterion_benchmark(c: &mut Criterion) {
     let history = history_from_log(LOG_FILE.to_owned());
-    c.bench_function("WLGChecker - check linearizability of etcd log", |b| {
+    c.bench_function("WGLChecker - check linearizability of etcd log", |b| {
         b.iter_batched(
             || history.clone(),
-            |history| WGLChecker::is_linearizable(EtcdSpecification, history),
+            |history| WGLChecker::<EtcdSpecification>::is_linearizable(history),
             BatchSize::SmallInput,
         )
     });

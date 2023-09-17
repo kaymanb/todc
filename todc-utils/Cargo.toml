@@ -7,6 +7,6 @@ edition = "2021"
 criterion = "0.4"
 
 [[bench]]
-name = "wlg_checker"
+name = "wgl_checker"
 harness = false
 

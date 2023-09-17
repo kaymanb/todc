@@ -1,27 +1,12 @@
-# Theory of Distributed Computing
+# todc-mem
 
-A library of algorithms used in theory of distributed computing, written in Rust. 
+Algorithms for shared-memory distributed systems.
 
-TODO: Refactor README for workspace
 
 ## Tests
 
+Some tests make use of [shuttle](https://github.com/awslabs/shuttle) for 
+_randomized concurrency testing_. To run tests that require this feature, do:
 ```
-cargo test
-```
-
-Coverage report available with `cargo llvm-cov --html --all`.
-
-### Testing shared-memory
-
-Run with the help of [loom](https://github.com/tokio-rs/loom):
-```
-LOOM_MAX_PREEMPTIONS=3 cargo test --release --features loom
-```
-
-## Benchmarks
-
-Run with the help of [criterion](https://github.com/bheisler/criterion.rs)
-```
-cargo criterion
+cargo test --features shuttle --test MODULE
 ```

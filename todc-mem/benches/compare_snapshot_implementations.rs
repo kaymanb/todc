@@ -6,12 +6,12 @@ use std::thread;
 
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 
-use todc_sm::snapshot::aad_plus_93::{
+use todc_mem::snapshot::aad_plus_93::{
     BoundedAtomicSnapshot, BoundedMutexSnapshot, UnboundedAtomicSnapshot, UnboundedMutexSnapshot,
 };
-use todc_sm::snapshot::ar_98::LatticeMutexSnapshot;
-use todc_sm::snapshot::mutex::MutexSnapshot;
-use todc_sm::snapshot::Snapshot;
+use todc_mem::snapshot::ar_98::LatticeMutexSnapshot;
+use todc_mem::snapshot::mutex::MutexSnapshot;
+use todc_mem::snapshot::Snapshot;
 
 const MIN_NUM_THREADS: usize = 2;
 const MAX_NUM_THREADS: usize = 5;
