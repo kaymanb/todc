@@ -9,7 +9,6 @@ mod lattice {
 
     type MutexSnapshot = LatticeMutexSnapshot<u32, NUM_THREADS, 256>;
 
-    // TODO: Fix bug in lattice snapshot algorithm.
     #[cfg(feature = "shuttle")]
     #[test]
     #[ignore]
@@ -23,10 +22,9 @@ mod lattice {
         );
     }
 
-    // TODO: Uncomment to observe a history that fails to be linearizable.
+    // TODO: Fix bug in lattice snapshot algorithm.
     #[cfg(feature = "shuttle")]
     #[test]
-    #[ignore]
     fn mutex_snapshot_fails_linearization_2023_09_16() {
         shuttle::replay_from_file(
             || {
