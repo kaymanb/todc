@@ -164,7 +164,7 @@ impl<T: Copy + Default, const N: usize, const M: u32> LatticeMutexSnapshot<T, N,
             counter: component.counter + 1,
             sequence: component.sequence + 1,
         });
-        Self::traverse(i, &self.root, self.collect(), M)
+        Self::traverse(i, &self.root, self.collect(), M / 2)
     }
 }
 
