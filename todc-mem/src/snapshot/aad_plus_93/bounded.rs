@@ -322,13 +322,14 @@ mod tests {
 
         #[test]
         fn encodes_to_u64_correctly() {
-            let mut contents: BoundedAtomicContents<6> = BoundedAtomicContents::default();
-            contents.value = 0b00100100;
-            contents.view = [
-                0b10011111, 0b10001111, 0b10000111, 0b10000011, 0b10000001, 0b10000000,
-            ];
-            contents.handshakes = [true, false, true, false, true, false];
-            contents.toggle = true;
+            let contents: BoundedAtomicContents<6> = BoundedAtomicContents::<6> {
+                value: 0b00100100,
+                view: [
+                    0b10011111, 0b10001111, 0b10000111, 0b10000011, 0b10000001, 0b10000000,
+                ],
+                handshakes: [true, false, true, false, true, false],
+                toggle: true,
+            };
             let actual: u64 = contents.into();
             let expected: u64 =
                 0b10010101_10000000_10000001_10000011_10000111_10001111_10011111_00100100;
@@ -343,7 +344,7 @@ mod tests {
                 handshakes: [true, false, false, false, false, true],
                 toggle: false,
             };
-            let encoding: u64 = contents.clone().into();
+            let encoding: u64 = contents.into();
             assert_eq!(contents, BoundedAtomicContents::from(encoding));
         }
     }

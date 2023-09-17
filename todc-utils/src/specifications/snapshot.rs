@@ -104,7 +104,7 @@ mod tests {
 
         #[test]
         fn scan_not_valid_if_differs_from_state() {
-            let mut new_state = Spec::init().clone();
+            let mut new_state = Spec::init();
             new_state[0] = 123;
             let (valid, _) = Spec::apply(&Scan(0, Some(new_state)), &Spec::init());
             assert!(!valid);

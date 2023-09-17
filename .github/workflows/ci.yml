@@ -43,7 +43,7 @@ jobs:
       run: cargo test --workspace --all-targets
       
   test-shuttle:
-    needs: [check, test]
+    needs: [check]
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
@@ -53,7 +53,7 @@ jobs:
       run: cargo test -p todc-mem --features shuttle --test snapshot --release
       
   test-turmoil:
-    needs: [check, test]
+    needs: [check]
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4

@@ -181,12 +181,11 @@ fn random_reads_and_writes_with_random_failures() {
 
     // Simulate clients that submit requests to correct servers.
     assert!(NUM_CLIENTS <= correct_servers.len());
-    for i in 0..NUM_CLIENTS {
+    for (i, register) in registers.into_iter().enumerate().take(NUM_CLIENTS) {
         let actions = actions.clone();
-        let register = registers[i].clone();
         let client_name = format!("client-{i}");
         sim.client(client_name, async move {
-            let mut client = RecordingRegisterClient::<u32>::new(i, register, actions);
+            let mut client = RecordingRegisterClient::<u32>::new(i, register.clone(), actions);
             for _ in 0..NUM_OPERATIONS {
                 client.perform_random_operation(WRITE_PROBABILITY).await?;
             }

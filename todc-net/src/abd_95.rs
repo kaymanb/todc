@@ -1,5 +1,5 @@
 //! An atomic register based on the implementation by Attiya, Bar-Noy, and
-//! Dolev [[ABD95]](https://dl.acm.org/doi/pdf/10.1145/200836.200869).
+//! Dolev [\[ABD95\]](https://dl.acm.org/doi/pdf/10.1145/200836.200869).
 //! use bytes::Bytes;
 use std::fmt::Debug;
 use std::future::Future;

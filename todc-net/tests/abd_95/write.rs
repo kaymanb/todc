@@ -1,17 +1,6 @@
 use crate::simulate_servers;
 
 #[test]
-fn returns_nothing() {
-    let (mut sim, replicas) = simulate_servers(2);
-    sim.client("client", async move {
-        let value = replicas[0].write(123).await.unwrap();
-        assert_eq!(value, ());
-        Ok(())
-    });
-    sim.run().unwrap();
-}
-
-#[test]
 fn sets_value_of_requested_replica() {
     let (mut sim, replicas) = simulate_servers(2);
     sim.client("client", async move {

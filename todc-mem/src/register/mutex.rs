@@ -136,14 +136,14 @@ mod tests {
         #[test]
         fn read() {
             let register: MutexRegister<bool> = MutexRegister::new();
-            assert_eq!(false, register.read());
+            assert!(!register.read());
         }
 
         #[test]
         fn write() {
             let register = MutexRegister::new();
             register.write(true);
-            assert_eq!(true, register.read());
+            assert!(register.read());
         }
     }
 

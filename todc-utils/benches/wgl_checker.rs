@@ -13,7 +13,7 @@ fn criterion_benchmark(c: &mut Criterion) {
     c.bench_function("WGLChecker - check linearizability of etcd log", |b| {
         b.iter_batched(
             || history.clone(),
-            |history| WGLChecker::<EtcdSpecification>::is_linearizable(history),
+            WGLChecker::<EtcdSpecification>::is_linearizable,
             BatchSize::SmallInput,
         )
     });

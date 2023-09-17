@@ -280,7 +280,7 @@ mod tests {
                     view: [1, 2],
                     sequence: 10_000,
                 };
-                let encoding: u64 = contents.clone().into();
+                let encoding: u64 = contents.into();
                 assert_eq!(contents, UnboundedAtomicContents::from(encoding));
             }
 
@@ -291,7 +291,7 @@ mod tests {
                     view: [1, 2, 3],
                     sequence: 10_000,
                 };
-                let encoding: u64 = contents.clone().into();
+                let encoding: u64 = contents.into();
                 assert_eq!(contents, UnboundedAtomicContents::from(encoding));
             }
 
@@ -302,7 +302,7 @@ mod tests {
                     view: [1, 2, 3, 4],
                     sequence: 10_000,
                 };
-                let encoding: u64 = contents.clone().into();
+                let encoding: u64 = contents.into();
                 assert_eq!(contents, UnboundedAtomicContents::from(encoding));
             }
 
@@ -313,7 +313,7 @@ mod tests {
                     view: [1, 2, 3, 4, 5],
                     sequence: 10_000,
                 };
-                let encoding: u64 = contents.clone().into();
+                let encoding: u64 = contents.into();
                 assert_eq!(contents, UnboundedAtomicContents::from(encoding));
             }
         }
@@ -344,10 +344,11 @@ mod tests {
 
             #[test]
             fn encodes_if_two_processes() {
-                let mut contents: UnboundedAtomicContents<2> = UnboundedAtomicContents::default();
-                contents.value = 0b00100100;
-                contents.view = [0b10000001, 0b10000000];
-                contents.sequence = 0b11000000_11000000;
+                let contents: UnboundedAtomicContents<2> = UnboundedAtomicContents {
+                    value: 0b00100100,
+                    view: [0b10000001, 0b10000000],
+                    sequence: 0b11000000_11000000,
+                };
                 let actual: u64 = contents.into();
                 let expected: u64 =
                     0b00000000_00000000_00000000_11000000_11000000_10000000_10000001_00100100;
@@ -356,10 +357,11 @@ mod tests {
 
             #[test]
             fn encodes_if_three_processes() {
-                let mut contents: UnboundedAtomicContents<3> = UnboundedAtomicContents::default();
-                contents.value = 0b00100100;
-                contents.view = [0b10000011, 0b10000001, 0b10000000];
-                contents.sequence = 0b11000000_11000000;
+                let contents: UnboundedAtomicContents<3> = UnboundedAtomicContents {
+                    value: 0b00100100,
+                    view: [0b10000011, 0b10000001, 0b10000000],
+                    sequence: 0b11000000_11000000,
+                };
                 let actual: u64 = contents.into();
                 let expected: u64 =
                     0b00000000_00000000_11000000_11000000_10000000_10000001_10000011_00100100;
@@ -368,10 +370,11 @@ mod tests {
 
             #[test]
             fn encodes_if_four_processes() {
-                let mut contents: UnboundedAtomicContents<4> = UnboundedAtomicContents::default();
-                contents.value = 0b00100100;
-                contents.view = [0b10000111, 0b10000011, 0b10000001, 0b10000000];
-                contents.sequence = 0b11000000_11000000;
+                let contents: UnboundedAtomicContents<4> = UnboundedAtomicContents {
+                    value: 0b00100100,
+                    view: [0b10000111, 0b10000011, 0b10000001, 0b10000000],
+                    sequence: 0b11000000_11000000,
+                };
                 let actual: u64 = contents.into();
                 let expected: u64 =
                     0b00000000_11000000_11000000_10000000_10000001_10000011_10000111_00100100;
@@ -380,10 +383,11 @@ mod tests {
 
             #[test]
             fn encodes_if_five_processes() {
-                let mut contents: UnboundedAtomicContents<5> = UnboundedAtomicContents::default();
-                contents.value = 0b00100100;
-                contents.view = [0b10001111, 0b10000111, 0b10000011, 0b10000001, 0b10000000];
-                contents.sequence = 0b11000000_11000000;
+                let contents: UnboundedAtomicContents<5> = UnboundedAtomicContents {
+                    value: 0b00100100,
+                    view: [0b10001111, 0b10000111, 0b10000011, 0b10000001, 0b10000000],
+                    sequence: 0b11000000_11000000,
+                };
                 let actual: u64 = contents.into();
                 let expected: u64 =
                     0b11000000_11000000_10000000_10000001_10000011_10000111_10001111_00100100;
