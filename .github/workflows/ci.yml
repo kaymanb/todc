@@ -1,0 +1,83 @@
+name: Rust
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: dtolnay/rust-toolchain@stable
+      with:
+        components: clippy, rustfmt
+    - uses: Swatinem/rust-cache@v2
+    - name: clippy
+      run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+    - name: rustfmt
+      run: cargo fmt --all --check
+      
+  check-docs:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: dtolnay/rust-toolchain@stable
+    - uses: Swatinem/rust-cache@v2
+    - name: cargo doc
+      run: cargo doc --all-features --no-deps
+      
+  test:
+    needs: check
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: dtolnay/rust-toolchain@stable
+    - uses: Swatinem/rust-cache@v2
+    - name: test
+      run: cargo test --workspace --all-targets
+      
+  test-shuttle:
+    needs: [check, test]
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: dtolnay/rust-toolchain@stable
+    - uses: Swatinem/rust-cache@v2
+    - name: test todc-mem/snapshot
+      run: cargo test -p todc-mem --features shuttle --test snapshot --release
+      
+  test-turmoil:
+    needs: [check, test]
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: dtolnay/rust-toolchain@stable
+    - uses: Swatinem/rust-cache@v2
+    - name: test todc-net/abd_96
+      run: cargo test -p todc-net --features turmoil --test abd_95
+      
+  coverage:
+    needs: [check, test, test-shuttle, test-turmoil]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
+      - name: Generate code coverage
+        run: > 
+          cargo llvm-cov --no-report --workspace
+          cargo llvm-cov --no-report -p todc-mem --features shuttle --test snapshot
+          cargo llvm-cov --no-report -p todc-net --features turmoil --test abd_95
+          cargo llvm-cov report --codecov --output-path codecov.json
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          files: codecov.json
+          fail_ci_if_error: true
