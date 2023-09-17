@@ -12,9 +12,9 @@ use todc_mem::snapshot::Snapshot;
 use todc_utils::specifications::snapshot::{ProcessId, SnapshotOperation, SnapshotSpecification};
 use todc_utils::{Action, History, WGLChecker};
 
-pub const NUM_ITERATIONS: usize = 100;
-pub const NUM_OPERATIONS: usize = 100;
-pub const NUM_PREEMPTIONS: usize = 5;
+pub const NUM_ITERATIONS: usize = 250;
+pub const NUM_OPERATIONS: usize = 50;
+pub const NUM_PREEMPTIONS: usize = 3;
 pub const NUM_THREADS: usize = 5;
 
 #[derive(Debug, Clone)]
@@ -52,7 +52,6 @@ where
             .collect(),
     );
 
-    println!("{actions:?}");
     assert!(WGLChecker::<SnapshotSpecification<T, N>>::is_linearizable(
         history
     ));
