@@ -14,9 +14,8 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 
 use todc_net::abd_95::AtomicRegister;
-use todc_utils::linearizability::history::{Action, History};
-use todc_utils::linearizability::WLGChecker;
 use todc_utils::specifications::register::{RegisterOperation, RegisterSpecification};
+use todc_utils::{Action, History, WGLChecker};
 
 use crate::{simulate_servers, SERVER_PREFIX};
 
@@ -61,8 +60,7 @@ where
             .map(|ta| (ta.process, ta.action.clone()))
             .collect(),
     );
-    assert!(WLGChecker::is_linearizable(
-        RegisterSpecification::new(),
+    assert!(WGLChecker::<RegisterSpecification<T>>::is_linearizable(
         history
     ));
 }
