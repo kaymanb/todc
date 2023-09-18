@@ -1,5 +1,8 @@
 # todc
 
+[![CI](https://github.com/kaymanb/todc/actions/workflows/ci.yml/badge.svg)](https://github.com/kaymanb/todc/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/kaymanb/todc/graph/badge.svg?token=BP1WOBRO9R)](https://codecov.io/gh/kaymanb/todc)
+
 `todc` is a library of distributed computing algorithms, written in Rust.
 
 ## Overview
