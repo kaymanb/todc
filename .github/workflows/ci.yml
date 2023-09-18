@@ -71,7 +71,7 @@ jobs:
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
       - name: Generate code coverage
-        run: > 
+        run: |
           cargo llvm-cov --no-report --workspace
           cargo llvm-cov --no-report -p todc-mem --features shuttle --test snapshot
           cargo llvm-cov --no-report -p todc-net --features turmoil --test abd_95
