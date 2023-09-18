@@ -12,7 +12,12 @@ use todc_mem::snapshot::Snapshot;
 use todc_utils::specifications::snapshot::{ProcessId, SnapshotOperation, SnapshotSpecification};
 use todc_utils::{Action, History, WGLChecker};
 
+// HACK: Run fewer iterations when calculating code coverage.
+#[cfg(coverage)]
+pub const NUM_ITERATIONS: usize = 5;
+#[cfg(not(coverage))]
 pub const NUM_ITERATIONS: usize = 250;
+
 pub const NUM_OPERATIONS: usize = 50;
 pub const NUM_PREEMPTIONS: usize = 3;
 pub const NUM_THREADS: usize = 5;
