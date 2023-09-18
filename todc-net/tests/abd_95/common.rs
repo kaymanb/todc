@@ -2,6 +2,7 @@ use bytes::Bytes;
 use http_body_util::{combinators::BoxBody, BodyExt, Empty, Full};
 use hyper::body::Incoming;
 use hyper::{Request, Response, Uri};
+use hyper_util::rt::TokioIo;
 use serde_json::Value as JSON;
 use turmoil::net::TcpStream;
 
@@ -12,9 +13,9 @@ pub async fn get(url: Uri) -> FetchResult<Response<Incoming>> {
     let host = url.host().expect("uri has no host");
     let port = url.port_u16().unwrap_or(80);
     let addr = format!("{host}:{port}");
-    let stream = TcpStream::connect(addr).await?;
+    let io = TokioIo::new(TcpStream::connect(addr).await?);
 
-    let (mut sender, conn) = hyper::client::conn::http1::handshake(stream).await?;
+    let (mut sender, conn) = hyper::client::conn::http1::handshake(io).await?;
     tokio::task::spawn(async move {
         if let Err(err) = conn.await {
             println!("Connection failed: {err}");
@@ -36,9 +37,9 @@ pub async fn post(url: Uri, body: JSON) -> FetchResult<Response<Incoming>> {
     let host = url.host().expect("uri has no host");
     let port = url.port_u16().unwrap_or(80);
     let addr = format!("{host}:{port}");
-    let stream = TcpStream::connect(addr).await?;
+    let io = TokioIo::new(TcpStream::connect(addr).await?);
 
-    let (mut sender, conn) = hyper::client::conn::http1::handshake(stream).await?;
+    let (mut sender, conn) = hyper::client::conn::http1::handshake(io).await?;
     tokio::task::spawn(async move {
         if let Err(err) = conn.await {
             println!("Connection failed: {err}");

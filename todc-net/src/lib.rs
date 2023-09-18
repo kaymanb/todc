@@ -3,6 +3,7 @@ use http_body_util::combinators::BoxBody;
 use http_body_util::{BodyExt, Full};
 use hyper::body::Incoming;
 use hyper::{Method, Request, Response, Uri};
+use hyper_util::rt::TokioIo;
 use serde_json::{json, Value as JSON};
 
 use crate::net::TcpStream;
@@ -24,7 +25,13 @@ pub(crate) async fn post(url: Uri, body: JSON) -> ResponseResult {
 async fn make_request(url: Uri, method: Method, body: JSON) -> ResponseResult {
     let authority = url.authority().ok_or("Invalid URL")?.as_str();
     let stream = TcpStream::connect(authority).await?;
-    let (mut sender, conn) = hyper::client::conn::http1::handshake(stream).await?;
+
+    // Use adapter to access something implementing tokio::io as if they
+    // implement hyper::rt.
+    // See: https://github.com/hyperium/hyper/issues/3110
+    let io = TokioIo::new(stream);
+
+    let (mut sender, conn) = hyper::client::conn::http1::handshake(io).await?;
 
     tokio::task::spawn(async move {
         if let Err(err) = conn.await {

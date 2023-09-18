@@ -19,7 +19,7 @@ jobs:
         components: clippy, rustfmt
     - uses: Swatinem/rust-cache@v2
     - name: clippy
-      run: cargo clippy --workspace --all-targets -- -D warnings
+      run: cargo clippy --workspace --all-features --all-targets -- -D warnings
     - name: rustfmt
       run: cargo fmt --all --check
       
@@ -30,7 +30,7 @@ jobs:
     - uses: dtolnay/rust-toolchain@stable
     - uses: Swatinem/rust-cache@v2
     - name: cargo doc
-      run: cargo doc --no-deps
+      run: cargo doc --all-features --no-deps
       
   test:
     needs: check

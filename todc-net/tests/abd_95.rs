@@ -3,17 +3,21 @@ use std::net::{IpAddr, Ipv4Addr};
 
 use hyper::server::conn::http1;
 use hyper::Uri;
+use hyper_util::rt::TokioIo;
 use turmoil::net::TcpListener;
 use turmoil::{Builder, Sim};
 
 use todc_net::abd_95::AtomicRegister;
 
-#[cfg(feature = "turmoil")]
 mod abd_95 {
     mod common;
+    #[cfg(feature = "turmoil")]
     mod linearizability;
+    #[cfg(feature = "turmoil")]
     mod local;
+    #[cfg(feature = "turmoil")]
     mod read;
+    #[cfg(feature = "turmoil")]
     mod write;
 }
 
@@ -25,12 +29,10 @@ async fn serve(register: AtomicRegister<u32>) -> Result<(), Box<dyn std::error::
     let listener = TcpListener::bind(addr).await?;
     loop {
         let (stream, _) = listener.accept().await?;
+        let io = TokioIo::new(stream);
         let register = register.clone();
         tokio::task::spawn(async move {
-            if let Err(err) = http1::Builder::new()
-                .serve_connection(stream, register)
-                .await
-            {
+            if let Err(err) = http1::Builder::new().serve_connection(io, register).await {
                 println!("Internal Server Error: {:?}", err);
             }
         });

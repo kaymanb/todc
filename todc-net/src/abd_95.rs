@@ -166,7 +166,7 @@ impl<T: Clone + Debug + Default + DeserializeOwned + Ord + Send + Serialize + 's
     type Error = Box<dyn std::error::Error + Send + Sync>;
     type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
 
-    fn call(&mut self, req: Request<Incoming>) -> Self::Future {
+    fn call(&self, req: Request<Incoming>) -> Self::Future {
         // TODO: Explain this.
         let me = self.clone();
         match (req.method(), req.uri().path()) {
