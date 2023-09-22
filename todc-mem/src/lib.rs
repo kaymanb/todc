@@ -1,5 +1,4 @@
-//! A libary of algorithms from the theory of distributed computing, written in Rust.
-
+//! Algorithms for shared-memory distributed systems.
 pub mod register;
 pub mod snapshot;
-pub mod sync;
+pub(crate) mod sync;

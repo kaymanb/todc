@@ -5,11 +5,21 @@ use crate::register::{AtomicRegister, MutexRegister, Register};
 use crate::snapshot::Snapshot;
 use crate::sync::{AtomicBool, Ordering};
 
-pub type BoundedMutexSnapshot<T, const N: usize> =
-    BoundedSnapshot<MutexRegister<BoundedContents<T, N>>, N>;
-
+/// A wait-free `N`-process atomic snapshot object, backed by [`AtomicRegister`]
+/// objects.
+///
+/// Due to limitations on [`AtomicRegister`], this snapshot can only contain
+/// `N <= 6` components of [`u8`] values. For implementation details, see
+/// [`BoundedSnapshot`].
 pub type BoundedAtomicSnapshot<const N: usize> =
     BoundedSnapshot<AtomicRegister<BoundedAtomicContents<N>>, N>;
+
+/// An `N`-process atomic snapshot object, backed by [`MutexRegister`] objects.
+///
+/// This snapshot is **not** lock-free. For implementation details, see
+/// [`BoundedSnapshot`].
+pub type BoundedMutexSnapshot<T, const N: usize> =
+    BoundedSnapshot<MutexRegister<BoundedContents<T, N>>, N>;
 
 pub trait Contents<const N: usize>: Default {
     type Value: Copy + Debug;
@@ -26,8 +36,13 @@ pub trait Contents<const N: usize>: Default {
     fn toggle(&self) -> bool;
 }
 
-/// A single-writer atomic snapshot from single-writer multi-reader
-/// registers.
+/// A wait-free `N`-process snapshot object.
+///
+/// This implementation is described in Section 4 of
+/// [[AAD+93]](https://dl.acm.org/doi/10.1145/153724.153741), and builds on
+/// the implementation of [`UnboundedSnapshot`](super::UnboundedSnapshot). If
+/// the type of register `R` is linearizable, then [`BoundedSnapshot<R, N>`]
+/// is as well.
 pub struct BoundedSnapshot<R: Register, const N: usize>
 where
     R::Value: Contents<N>,

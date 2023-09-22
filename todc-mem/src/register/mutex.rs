@@ -2,7 +2,7 @@ use crate::sync::Mutex;
 
 use super::Register;
 
-/// An shared-memory register, backed by a mutex.
+/// An shared-memory register, backed by a [`Mutex`].
 ///
 /// This object uses a mutex to protect against concurrent memory
 /// access. It is **not** lock-free.

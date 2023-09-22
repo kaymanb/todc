@@ -5,7 +5,7 @@ use super::common::{
 
 mod lattice {
     use super::*;
-    use todc_mem::snapshot::ar_98::LatticeMutexSnapshot;
+    use todc_mem::snapshot::LatticeMutexSnapshot;
 
     // Constant M must be a power of 2 and larger than NUM_OPERATIONS * NUM_THREADS
     type MutexSnapshot = LatticeMutexSnapshot<u32, NUM_THREADS, 512>;

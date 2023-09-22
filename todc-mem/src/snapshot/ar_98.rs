@@ -1,5 +1,24 @@
-//! Implementations of atomic snapshot objects based on the paper by
-//! Attiya and Rachman [\[AR93\]](https://doi.org/10.1137/S0097539795279463).
+//! Snapshot objects, as described by Attiya and Rachman
+//! [\[AR93\]](https://doi.org/10.1137/S0097539795279463).
+//!    
+//! This module contains an implementation of a snapshot object in which
+//! each [`scan`](Snapshot::scan) and [`update`](Snapshot::update) operation
+//! require _O(_ n _log_ n _)_ [`read`](Register::read) and [`write`](Register::write)
+//! operations on the underlying registers.
+//!
+//! In practice, this implementation actually performs worse that other
+//! implementations due to its complexity and overhead. See
+//! `todc-mem/benches/compare_snapshot_implementations.rs`.
+//!
+//! # Examples
+//!
+//! For examples, see the [`snapshot`](super) documentation.
+//!
+//! # Wait-Free Variant
+//!
+//! Due to the size constraints of
+//! [`AtomicRegister`](crate::register::AtomicRegister) there is no wait-free,
+//! or even lock-free, implementation of this snapshot object available.
 use super::Snapshot;
 use crate::register::{MutexRegister, Register};
 use core::array::from_fn;
@@ -107,7 +126,9 @@ impl<T: Copy + Default, const N: usize> Classifier<T, N> {
     }
 }
 
-/// An N-process M-shot mutex-based snapshot object.
+/// A lattice-agreement based `N`-process atomic snapshot object, using [`MutexRegister`] objects.
+///
+/// This snapshot object is **not** lock-free.
 // TODO: Modify this implementation to an infinity-shot snapshot object, as
 // described in the paper.
 pub struct LatticeMutexSnapshot<T: Copy + Default, const N: usize, const M: u32> {

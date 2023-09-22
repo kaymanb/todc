@@ -1,7 +1,12 @@
+//! An atomic snapshot backed by [`Mutex`] objects.
 use crate::sync::Mutex;
 
 use crate::snapshot::Snapshot;
 
+/// A [`Mutex`]-based atomic snapshot.
+///
+/// This implementation uses a mutex to protect against concurrent memory
+/// access. It is **not** lock-free.
 pub struct MutexSnapshot<T: Copy + Default, const N: usize> {
     mutex: Mutex<[T; N]>,
 }

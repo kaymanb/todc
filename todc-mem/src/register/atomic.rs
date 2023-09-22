@@ -7,7 +7,7 @@ use super::Register;
 /// A shared-memory register, backed by an 64 bits of "atomic" memory.
 ///
 /// This object works by serializing data and storing it in an
-/// `AtomicU64`, and so can only be used to store small amounts
+/// [`AtomicU64`], and so can only be used to store small amounts
 /// of data.
 ///
 /// # Atomics and Memory Ordering
@@ -24,22 +24,22 @@ use super::Register;
 /// which means that all processes perform operations in a sequential order, but
 /// the relative order of operations perfomed by different processes is undefined.
 ///
-/// As a result , operations performed on an `AtomicRegister` are only
+/// As a result, operations performed on an `AtomicRegister` are only
 /// guaranteed to be sequentially consistent, not necessarily lineariazable.
 ///
 /// Thankfully, it was recently shown by Perrin, Petrolia, Mostefaoui, and Jard
-/// [[PPM+2016]](https://arxiv.org/abs/1607.06258) that objects that would become
-/// linearizable if they were implemented on top of a linearizable memory become
+/// [[PPM+2016]](https://arxiv.org/abs/1607.06258) that objects that would be
+/// linearizable if they were implemented on top of linearizable memory become
 /// sequentially consistent if implemented on top of sequentially consistent
 /// memory. This means that, while implemenations of linearizable algorithms
-/// from `AtomicRegister` objects may fail to be linearizable, they will at least
+/// from [`AtomicRegister`] objects may fail to be linearizable, they will at least
 /// be sequentially consistent, and will retain all other properties such as
 /// wait-freedom.
 ///
 /// ## Linearizability
 ///
 /// For a register that guarantees linearizability at the cost of lock-freedom,
-/// see `MutexRegister`.
+/// see [`MutexRegister`](super::mutex::MutexRegister).
 ///
 /// # Examples
 ///
@@ -66,7 +66,7 @@ use super::Register;
 /// ```
 ///
 /// Although space is limited, it is still possible to store any type that can
-/// be converted to `u64` and back again.
+/// be converted to [`u64`] and back again.
 ///
 /// ```
 /// use heapless::String;

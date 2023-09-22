@@ -4,7 +4,7 @@ use super::common::{
 
 mod unbounded {
     use super::*;
-    use todc_mem::snapshot::aad_plus_93::{UnboundedAtomicSnapshot, UnboundedMutexSnapshot};
+    use todc_mem::snapshot::{UnboundedAtomicSnapshot, UnboundedMutexSnapshot};
 
     type MutexSnapshot = UnboundedMutexSnapshot<u32, NUM_THREADS>;
     type AtomicSnapshot = UnboundedAtomicSnapshot<NUM_THREADS>;
@@ -36,7 +36,7 @@ mod unbounded {
 
 mod bounded {
     use super::*;
-    use todc_mem::snapshot::aad_plus_93::{BoundedAtomicSnapshot, BoundedMutexSnapshot};
+    use todc_mem::snapshot::{BoundedAtomicSnapshot, BoundedMutexSnapshot};
 
     type MutexSnapshot = BoundedMutexSnapshot<u32, NUM_THREADS>;
     type AtomicSnapshot = BoundedAtomicSnapshot<NUM_THREADS>;

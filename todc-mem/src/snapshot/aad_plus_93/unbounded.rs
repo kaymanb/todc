@@ -5,17 +5,22 @@ use num::{One, PrimInt, Unsigned};
 use crate::register::{AtomicRegister, MutexRegister, Register};
 use crate::snapshot::Snapshot;
 
-/// A wait-free `N`-process single-writer multi-reader atomic snapshot.
+/// A wait-free `N`-process atomic snapshot object, using [`AtomicRegister`]
+/// objects of unbounded size.
 ///
-/// This implementation is backed by `AtomicRegister` objects.
-// TODO: Mention limitations on N
+/// Due to limitations on [`AtomicRegister`], this snapshot can only contain
+/// `N <= 5` components of [`u8`] values. For similar reasons, and the fact
+/// that this implementation relies on registers of unbounded size, behaviour
+/// is undefined once some process performs more than [`u16::MAX`] operations.
+/// For more implementation details, see [`UnboundedSnapshot`].
 pub type UnboundedAtomicSnapshot<const N: usize> =
     UnboundedSnapshot<AtomicRegister<UnboundedAtomicContents<N>>, N>;
 
-/// An `N`-process single-writer multi-reader snapshot.
+/// An `N`-process atomic snapshot object, using [`MutexRegister`] objects
+/// of unbounded size.
 ///
-/// This implementation is backed by `MutexRegiser` objects,
-/// and is linearizable but not lock-free.
+/// This snapshot is **not** lock-free. For implementation details, see
+/// [`UnboundedSnapshot`].
 pub type UnboundedMutexSnapshot<T, const N: usize> =
     UnboundedSnapshot<MutexRegister<UnboundedContents<T, N>>, N>;
 
@@ -37,13 +42,12 @@ pub trait Contents<const N: usize>: Default {
     fn view(&self) -> [Self::Value; N];
 }
 
-/// A wait-free `N`-process single-writer multi-reader snapshot object, backed by
-/// register objects of type `R`.
+/// A wait-free `N`-process snapshot object using unbounded memory.
 ///
 /// This implementation relies on storing sequence numbers that can
 /// grow arbitrarily large, and is described in Section 3 of
-/// [[AAD+93]](https://dl.acm.org/doi/10.1145/153724.153741). If `R`
-/// is linearizable, then `UnboundedSnapshot<R, N>` is as well.
+/// [[AAD+93]](https://dl.acm.org/doi/10.1145/153724.153741). If the type of
+/// register `R` is linearizable, then [`UnboundedSnapshot<R, N>`] is as well.
 pub struct UnboundedSnapshot<R: Register, const N: usize>
 where
     R::Value: Contents<N>,

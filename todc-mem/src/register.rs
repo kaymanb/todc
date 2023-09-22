@@ -1,4 +1,6 @@
 //! Shared read/write registers.
+//!
+//! See [`AtomicRegister`].
 mod atomic;
 pub use self::atomic::AtomicRegister;
 mod mutex;
