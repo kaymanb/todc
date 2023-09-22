@@ -1,7 +1,16 @@
 [package]
 name = "todc-utils"
+description = "Utilities for building and testing distributed systems."
 version = "0.1.0"
 edition = "2021"
+license = "MIT"
+
+homepage = "https://github.com/kaymanb/todc/tree/main"
+repository = "https://github.com/kaymanb/todc/tree/main"
+readme = "README.md"
+
+categories = ["algorithms", "concurrency"]
+keywords = ["distributed-systems", "linearizability"]
 
 [dev-dependencies]
 criterion = "0.4"

@@ -1,7 +1,16 @@
 [package]
 name = "todc-mem"
+description = "Algorithms for shared-memory distributed systems."
 version = "0.1.0"
 edition = "2021"
+license = "MIT"
+
+homepage = "https://github.com/kaymanb/todc/tree/main"
+repository = "https://github.com/kaymanb/todc/tree/main"
+readme = "README.md"
+
+categories = ["algorithms", "concurrency", "data-structures"]
+keywords = ["distributed-systems", "shared-memory", "atomic-snapshot"]
 
 [dependencies]
 num = "0.4"

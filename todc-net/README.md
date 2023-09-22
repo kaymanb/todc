@@ -2,7 +2,7 @@
 
 Algorithms for message-passing (HTTP) distributed systems.
 
-## Tests
+## Development
 
 Some tests make use of [turmoil](https://github.com/tokio-rs/turmoil) to
 simulate latency and failures within a network. To run tests that require this
