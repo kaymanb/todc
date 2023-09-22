@@ -1,5 +1,8 @@
 # todc-utils
 
+[![crates.io](https://img.shields.io/crates/v/todc-utils)](https://crates.io/crates/todc-utils)
+[![docs.rs](https://img.shields.io/docsrs/todc-utils)](https://docs.rs/todc-utils/0.1.0/todc_utils/)
+
 Utilities for building and testing distributed algorithms.
 
 ## Examples

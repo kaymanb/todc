@@ -1,5 +1,9 @@
 # todc-mem
 
+[![crates.io](https://img.shields.io/crates/v/todc-mem)](https://crates.io/crates/todc-mem/)
+[![docs.rs](https://img.shields.io/docsrs/todc-mem)](https://docs.rs/todc-mem/0.1.0/todc_mem/)
+
+
 Algorithms for shared-memory distributed systems.
 
 ## Limitations

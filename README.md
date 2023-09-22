@@ -13,8 +13,6 @@ implementations of algorithms from classic papers.
 
 ### Message Passing
 
-Unreleased, under active development.
-
 For message passing systems, [`todc-net`](https://github.com/kaymanb/todc/tree/main/todc-net) 
 provides implementations for services that communicate over HTTP. 
 

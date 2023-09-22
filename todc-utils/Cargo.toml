@@ -7,7 +7,6 @@ license = "MIT"
 
 homepage = "https://github.com/kaymanb/todc/tree/main"
 repository = "https://github.com/kaymanb/todc/tree/main"
-readme = "README.md"
 
 categories = ["algorithms", "concurrency"]
 keywords = ["distributed-systems", "linearizability"]
