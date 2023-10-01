@@ -9,6 +9,7 @@ use std::sync::{Arc, Mutex};
 use bytes::{Buf, Bytes};
 use http_body_util::{BodyExt, Full};
 use hyper::body::Incoming;
+use hyper::http::StatusCode;
 use hyper::service::Service;
 use hyper::{Method, Request, Response, Uri};
 use serde::de::DeserializeOwned;
@@ -17,18 +18,21 @@ use tokio::task::JoinSet;
 
 use crate::{get, mk_response, post, GenericError};
 
+/// TODO: Document
 #[derive(Clone, Debug, Default, Deserialize, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 struct LocalValue<T: Clone + Debug + Default + Ord + Send> {
     label: u32,
     value: T,
 }
 
+/// TODO: Document
 #[derive(Clone)]
 pub struct AtomicRegister<T: Clone + Debug + Default + DeserializeOwned + Ord + Send> {
     neighbors: Vec<Uri>,
     local: Arc<Mutex<LocalValue<T>>>,
 }
 
+// TODO: Is this even needed?
 impl<T: Clone + Debug + Default + DeserializeOwned + Ord + Send + Serialize + 'static> Default
     for AtomicRegister<T>
 {
@@ -37,6 +41,7 @@ impl<T: Clone + Debug + Default + DeserializeOwned + Ord + Send + Serialize + 's
     }
 }
 
+/// TODO: Document
 #[derive(Clone, Copy)]
 enum MessageType {
     /// A message _announcing_ the senders value and label, with the intention of
@@ -49,6 +54,7 @@ enum MessageType {
 impl<T: Clone + Debug + Default + DeserializeOwned + Ord + Send + Serialize + 'static>
     AtomicRegister<T>
 {
+    /// TODO: Document
     pub fn new(neighbors: Vec<Uri>) -> Self {
         Self {
             neighbors,
@@ -56,6 +62,7 @@ impl<T: Clone + Debug + Default + DeserializeOwned + Ord + Send + Serialize + 's
         }
     }
 
+    /// TODO: Document
     async fn communicate(
         &self,
         message: MessageType,
@@ -120,6 +127,7 @@ impl<T: Clone + Debug + Default + DeserializeOwned + Ord + Send + Serialize + 's
         Ok(results)
     }
 
+    /// TODO: Document
     fn neighbor_urls(&self) -> Vec<Uri> {
         let neighbors = self.neighbors.clone();
         neighbors
@@ -132,6 +140,7 @@ impl<T: Clone + Debug + Default + DeserializeOwned + Ord + Send + Serialize + 's
             .collect()
     }
 
+    /// TODO: Document
     pub async fn read(&self) -> Result<T, GenericError> {
         let info = self.communicate(MessageType::Ask).await?;
         let max = info.into_iter().max().unwrap().unwrap();
@@ -140,6 +149,7 @@ impl<T: Clone + Debug + Default + DeserializeOwned + Ord + Send + Serialize + 's
         Ok(local.value)
     }
 
+    /// TODO: Document
     fn update(&self, other: &LocalValue<T>) -> LocalValue<T> {
         let mut local = self.local.lock().unwrap();
         if *other > *local {
@@ -148,6 +158,7 @@ impl<T: Clone + Debug + Default + DeserializeOwned + Ord + Send + Serialize + 's
         local.clone()
     }
 
+    /// TODO: Document
     pub async fn write(&self, value: T) -> Result<(), GenericError> {
         let new = LocalValue {
             value,
@@ -172,7 +183,9 @@ impl<T: Clone + Debug + Default + DeserializeOwned + Ord + Send + Serialize + 's
         match (req.method(), req.uri().path()) {
             // GET requests return this severs local value and associated label
             (&Method::GET, "/register/local") => {
-                Box::pin(async move { mk_response(serde_json::to_value(&me.local)?) })
+                Box::pin(
+                    async move { mk_response(StatusCode::OK, serde_json::to_value(&me.local)?) },
+                )
             }
             // POST requests take another value and label as input, updates
             // this servers local value to be the _greater_ of the two, and
@@ -181,12 +194,9 @@ impl<T: Clone + Debug + Default + DeserializeOwned + Ord + Send + Serialize + 's
                 let body = req.collect().await?.aggregate();
                 let other: LocalValue<T> = serde_json::from_reader(body.reader())?;
                 let local = me.update(&other);
-
-                mk_response(serde_json::to_value(&local)?)
+                mk_response(StatusCode::OK, serde_json::to_value(&local)?)
             }),
-            // Return the 404 Not Found for other routes, and don't increment counter.
-            // TODO: Improve this...
-            _ => Box::pin(async { mk_response("404 Not Found".into()) }),
+            _ => Box::pin(async { mk_response(StatusCode::NOT_FOUND, "404 Not Found".into()) }),
         }
     }
 }

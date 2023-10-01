@@ -3,8 +3,7 @@ use http_body_util::BodyExt;
 use hyper::Uri;
 use serde_json::{json, Value as JSON};
 
-use crate::abd_95::common::{get, post};
-use crate::simulate_servers;
+use crate::abd_95::common::{get, post, simulate_servers};
 
 mod get {
     use super::*;

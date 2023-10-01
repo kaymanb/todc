@@ -1,4 +1,4 @@
-use crate::simulate_servers;
+use crate::abd_95::common::simulate_servers;
 
 #[test]
 fn sets_value_of_requested_replica() {

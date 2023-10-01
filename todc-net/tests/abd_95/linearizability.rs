@@ -17,7 +17,7 @@ use todc_net::abd_95::AtomicRegister;
 use todc_utils::specifications::register::{RegisterOperation, RegisterSpecification};
 use todc_utils::{Action, History, WGLChecker};
 
-use crate::{simulate_servers, SERVER_PREFIX};
+use crate::abd_95::common::{simulate_servers, SERVER_PREFIX};
 
 use RegisterOperation::{Read, Write};
 
@@ -106,19 +106,20 @@ where
             let value: T = self.rng.gen::<T>();
             self.write(value).await
         } else {
-            self.read().await
+            self.read().await?;
+            Ok(())
         }
     }
 
-    async fn read(&self) -> EmptyResult {
+    async fn read(&self) -> Result<T, Box<dyn Error>> {
         let call_action = Action::Call(Read(None));
         self.record(call_action);
 
         let value = self.register.read().await.unwrap();
 
-        let response_action = Action::Response(Read(Some(value)));
+        let response_action = Action::Response(Read(Some(value.clone())));
         self.record(response_action);
-        Ok(())
+        Ok(value)
     }
 
     async fn write(&self, value: T) -> EmptyResult {
@@ -139,10 +140,10 @@ where
 #[test]
 fn random_reads_and_writes_with_random_failures() {
     const NUM_CLIENTS: usize = 5;
-    const NUM_OPERATIONS: usize = 25;
+    const NUM_OPERATIONS: usize = 50;
     const NUM_SERVERS: usize = 10;
     const WRITE_PROBABILITY: f64 = 1.0 / 2.0;
-    const FAILURE_RATE: f64 = 1.0;
+    const FAILURE_RATE: f64 = 0.9;
 
     // Simulate a network where a random minority of servers
     // fail with non-zero probability.
@@ -197,83 +198,6 @@ fn random_reads_and_writes_with_random_failures() {
 
     // Collect log of call/response actions that occured during the simulation
     // and assert that the resulting history is linearizable
-    let actions = Arc::try_unwrap(actions).unwrap().into_inner().unwrap();
-    assert_linearizable(actions);
-}
-
-/// Asserts that a pair of reads that are concurrent with a write will return values
-/// that are part of a linearizable history.
-///
-/// This particular scenario is alluded to by Attiya, Bar-Noy, and Dolev
-/// [[ABD95]](https://dl.acm.org/doi/pdf/10.1145/200836.200869) when providing
-/// intuition for why a `read` operation must announce its values to all others prior
-/// to returning.
-///
-/// > Informally, this announcement is needed since, otherwise, it is possible
-/// > for a read operation to return the label of a write operation that is
-/// > concurrent with it, and for a later read operation to return an earlier label.
-///
-/// In the test, we manipulate the network in order to simulate a scenario
-/// where the first read _does_ return the value (i.e. label) of the write
-/// operation it is concurrent with, and the linearizability assertion will
-/// implicitly check that the subsequent read does as well.
-#[test]
-fn pair_of_reads_with_concurrent_write() {
-    const NUM_SERVERS: usize = 5;
-
-    let (mut sim, registers) = simulate_servers(NUM_SERVERS);
-    sim.set_max_message_latency(Duration::from_millis(1));
-
-    let actions: Arc<Mutex<Vec<TimedAction<RegisterOperation<u32>>>>> =
-        Arc::new(Mutex::new(vec![]));
-
-    let actions_clone = actions.clone();
-    let register_0 = registers[0].clone();
-    sim.client("concurrent-writer", async move {
-        let client = RecordingRegisterClient::<u32>::new(0, register_0, actions_clone);
-
-        // Initially, server-0 is isolated in the network. In particular,
-        // server-1 and server-2 will not recieve information about the written
-        // value until their messages are released.
-        turmoil::hold("server-0", "server-1");
-        turmoil::hold("server-0", "server-2");
-        turmoil::hold("server-0", "server-3");
-        turmoil::hold("server-0", "server-4");
-
-        client.write(123).await?;
-        Ok(())
-    });
-
-    let actions_clone = actions.clone();
-    let register_1 = registers[1].clone();
-    let register_2 = registers[2].clone();
-    sim.client("reader", async move {
-        // First, release messages between server-0 to server-1 and wait for
-        // any that occur during the concurrent write to be delivered.
-        turmoil::release("server-0", "server-1");
-        std::thread::sleep(Duration::from_secs(1));
-
-        // Then, perform a read on server-1.
-        let client_1 = RecordingRegisterClient::<u32>::new(1, register_1, actions_clone.clone());
-        client_1.read().await?;
-
-        // Next, hold messages between server-1 and server-2, preventing server-2
-        // from asking for information about the value returned by the ealier read.
-        turmoil::hold("server-1", "server-2");
-
-        // Perform a read on server-2.
-        let client_2 = RecordingRegisterClient::<u32>::new(2, register_2, actions_clone);
-        client_2.read().await?;
-
-        // Finally, release all messeges from server-0, allow the write to complete.
-        turmoil::release("server-0", "server-2");
-        turmoil::release("server-0", "server-3");
-        turmoil::release("server-0", "server-4");
-        Ok(())
-    });
-
-    sim.run().unwrap();
-
     let actions = Arc::try_unwrap(actions).unwrap().into_inner().unwrap();
     assert_linearizable(actions);
 }

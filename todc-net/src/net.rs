@@ -1,6 +1,5 @@
-//! This module abstracts over `tokio` and `turmoil` depending on whether
-//! we are running tests or not.
-
+//! This module switches between `tokio` and `turmoil` types depending on
+//! whether we are running tests or not.
 #[cfg(not(feature = "turmoil"))]
 pub(crate) use tokio::net::TcpStream;
 

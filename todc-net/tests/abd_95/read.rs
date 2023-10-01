@@ -1,4 +1,4 @@
-use crate::simulate_servers;
+use crate::abd_95::common::simulate_servers;
 
 #[test]
 fn returns_current_value() {
@@ -25,7 +25,7 @@ fn returns_value_from_write_to_other_replica() {
 }
 
 #[test]
-fn returns_even_if_half_of_neighbors_are_unreachable() {
+fn returns_even_if_almost_half_of_neighbors_are_unreachable() {
     let (mut sim, replicas) = simulate_servers(3);
     sim.client("client", async move {
         turmoil::hold("client", "server-1");
@@ -54,7 +54,7 @@ fn hangs_if_more_than_half_of_neighbors_are_unreachable() {
 }
 
 #[test]
-fn returns_even_if_half_of_neighbors_are_offline() {
+fn returns_even_if_almost_half_of_neighbors_are_offline() {
     let (mut sim, replicas) = simulate_servers(3);
     sim.client("client", async move {
         turmoil::partition("client", "server-1");
