@@ -1,42 +1,46 @@
 use std::env;
-use std::fmt::Debug;
 use std::net::SocketAddr;
 
 use bytes::{Buf, Bytes};
 use http_body_util::{BodyExt, Full};
 use hyper::body::Incoming;
+use hyper::http::StatusCode;
 use hyper::server::conn::http1;
-use hyper::service::{Service, service_fn};
+use hyper::service::{service_fn, Service};
 use hyper::{Method, Request, Response, Uri};
-use serde::Serialize;
-use serde::de::DeserializeOwned;
-use serde_json::json;
+use hyper_util::rt::TokioIo;
+use serde_json::{json, Value as JSON};
 use tokio::net::TcpListener;
-use tracing_subscriber;
 
-// TODO: mk_response should not be public...
-use todc_net::mk_response;
 use todc_net::abd_95::AtomicRegister;
 
-async fn router<T: Clone + Debug + Default + DeserializeOwned + Ord + Send + Serialize + 'static>(
-    mut register: AtomicRegister<T>, 
-    req: Request<Incoming>
+fn mk_response(body: JSON) -> Response<Full<Bytes>> {
+    Response::builder()
+        .status(StatusCode::OK)
+        .body(Full::new(Bytes::from(body.to_string())))
+        .unwrap()
+}
+
+/// Routes requests to the appropriate register operations.
+async fn router(
+    register: AtomicRegister<String>,
+    req: Request<Incoming>,
 ) -> Result<Response<Full<Bytes>>, Box<dyn std::error::Error + Send + Sync>> {
     match (req.method(), req.uri().path()) {
-        (&Method::GET, "/") => mk_response(json!("Try submitting requests to /register!")),
+        (&Method::GET, "/") => Ok(mk_response(json!("Try submitting requests to /register!"))),
         (&Method::GET, "/register") => {
-            let value: T = register.read().await.unwrap();
-            mk_response(serde_json::to_value(value).unwrap())
-        },
+            let value: String = register.read().await.unwrap();
+            let body = serde_json::to_value(value).unwrap();
+            Ok(mk_response(body))
+        }
         (&Method::POST, "/register") => {
             let body = req.collect().await?.aggregate();
-            let value: T = serde_json::from_reader(body.reader())?;
-            register.write(value).await.unwrap();
-            mk_response(json!(null))
-        },
-        _ => register.call(req).await
+            let value: JSON = serde_json::from_reader(body.reader())?;
+            register.write(value.to_string()).await.unwrap();
+            Ok(mk_response(json!(null)))
+        }
+        _ => register.call(req).await,
     }
-
 }
 
 /// Returns a vector containing the URL of all neighboring
@@ -71,8 +75,6 @@ fn find_neighbors() -> Vec<Uri> {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    tracing_subscriber::fmt::init();
-
     let addr: SocketAddr = ([0, 0, 0, 0], 3000).into();
 
     let neighbors = find_neighbors();
@@ -82,14 +84,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     println!("Listening on http://{}", addr);
     loop {
         let (stream, _) = listener.accept().await?;
-        
+        let io = TokioIo::new(stream);
         let register = register.clone();
         tokio::task::spawn(async move {
             if let Err(err) = http1::Builder::new()
-                .serve_connection(stream, service_fn(move |req| {
-                    let register = register.clone();
-                    router(register, req)
-                }))
+                .serve_connection(io, service_fn(move |req| router(register.clone(), req)))
                 .await
             {
                 println!("Failed to serve connection: {:?}", err);
