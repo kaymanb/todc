@@ -8,6 +8,8 @@ use hyper::http::StatusCode;
 use hyper::server::conn::http1;
 use hyper::{Request, Response, Uri};
 use hyper_util::rt::TokioIo;
+use rand::rngs::StdRng;
+use rand::{thread_rng, Rng, SeedableRng};
 use serde_json::Value as JSON;
 use turmoil::net::{TcpListener, TcpStream};
 use turmoil::{Builder, Sim};
@@ -19,30 +21,19 @@ pub const PORT: u32 = 9999;
 
 type FetchResult<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
-/// Simulate n replicas of a register.
+/// Simulate n replicates of a register.
 pub fn simulate_servers<'a>(n: usize) -> (Sim<'a>, Vec<AtomicRegister<u32>>) {
-    let mut sim = Builder::new().build();
+    let sim = Builder::new().build();
+    simulate_registers(n, sim)
+}
 
-    let mut registers = Vec::new();
-
-    let neighbors: Vec<Uri> = (0..n)
-        .map(|i| {
-            format!("http://{SERVER_PREFIX}-{i}:{PORT}")
-                .parse()
-                .unwrap()
-        })
-        .collect();
-
-    for i in 0..n {
-        let mut neighbors = neighbors.clone();
-        neighbors.remove(i);
-        let register: AtomicRegister<u32> = AtomicRegister::new(neighbors);
-        let name = format!("{SERVER_PREFIX}-{i}");
-        let register_clone = register.clone();
-        sim.host(name, move || serve(register_clone.clone()));
-        registers.push(register);
-    }
-    (sim, registers)
+/// Simulate n replicas of a register with a fixed RNG seed.
+pub fn simulate_servers_with_seed<'a>(n: usize) -> (Sim<'a>, Vec<AtomicRegister<u32>>, u64) {
+    let seed: u64 = thread_rng().gen();
+    let rng = StdRng::seed_from_u64(seed);
+    let sim = Builder::new().build_with_rng(Box::new(rng));
+    let (sim, registers) = simulate_registers(n, sim);
+    (sim, registers, seed)
 }
 
 /// Submits a GET request to the URL.
@@ -96,6 +87,30 @@ pub async fn post(url: Uri, body: JSON) -> FetchResult<Response<Incoming>> {
     Ok(res)
 }
 
+/// Adds n register instances to the simulation.
+fn simulate_registers(n: usize, mut sim: Sim) -> (Sim, Vec<AtomicRegister<u32>>) {
+    let mut registers = Vec::new();
+
+    let neighbors: Vec<Uri> = (0..n)
+        .map(|i| {
+            format!("http://{SERVER_PREFIX}-{i}:{PORT}")
+                .parse()
+                .unwrap()
+        })
+        .collect();
+
+    for i in 0..n {
+        let mut neighbors = neighbors.clone();
+        neighbors.remove(i);
+        let register: AtomicRegister<u32> = AtomicRegister::new(neighbors);
+        let name = format!("{SERVER_PREFIX}-{i}");
+        let register_clone = register.clone();
+        sim.host(name, move || serve(register_clone.clone()));
+        registers.push(register);
+    }
+    (sim, registers)
+}
+
 /// Serve a register as a service.
 async fn serve(register: AtomicRegister<u32>) -> Result<(), Box<dyn std::error::Error + 'static>> {
     let addr = (IpAddr::from(Ipv4Addr::UNSPECIFIED), 9999);
@@ -106,7 +121,7 @@ async fn serve(register: AtomicRegister<u32>) -> Result<(), Box<dyn std::error::
         let register = register.clone();
         tokio::task::spawn(async move {
             if let Err(err) = http1::Builder::new().serve_connection(io, register).await {
-                println!("Internal Server Error: {:?}", err);
+                println!("Error Serving Connection: {:?}", err);
             }
         });
     }

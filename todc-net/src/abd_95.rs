@@ -63,68 +63,61 @@ impl<T: Clone + Debug + Default + DeserializeOwned + Ord + Send + Serialize + 's
     }
 
     /// TODO: Document
-    async fn communicate(
-        &self,
-        message: MessageType,
-    ) -> Result<Vec<Option<LocalValue<T>>>, GenericError> {
+    async fn communicate(&self, message: MessageType) -> Result<Vec<LocalValue<T>>, GenericError> {
         let local = self.local.lock().unwrap().clone();
-        let mut results: Vec<Option<LocalValue<T>>> = vec![Some(local.clone())];
-        results.resize_with(self.neighbors.len() + 1, Default::default);
 
+        // Communicate the message with all neighbors.
         let mut handles = JoinSet::new();
-        let info = Arc::new(Mutex::new(results));
-
-        let num_neighbors = self.neighbors.iter().len();
-        println!("Communicating with {num_neighbors:?} other replicas...");
-
-        for (i, url) in self.neighbor_urls().into_iter().enumerate() {
-            println!("Sending request to {url:?}");
-            let info = info.clone();
+        for url in self.neighbor_urls().into_iter() {
             let local = local.clone();
             handles.spawn(async move {
-                let res = match message {
+                let result = match message {
                     MessageType::Announce => {
                         let body = serde_json::to_value(local)?;
-                        post(url, body).await?
+                        post(url, body).await
                     }
-                    MessageType::Ask => get(url).await?,
+                    MessageType::Ask => get(url).await,
                 };
 
-                let status = res.status();
-                println!("Got: {status:?}");
+                match result {
+                    Err(error) => Err(error),
+                    Ok(response) => {
+                        if response.status().is_server_error() {
+                            return Err(GenericError::from("Unexpected server error"));
+                        }
 
-                if res.status().is_server_error() {
-                    return Err(GenericError::from("Unexpected server error"));
+                        let body = response.collect().await?.aggregate();
+                        let value: LocalValue<T> = serde_json::from_reader(body.reader())?;
+                        Ok(value)
+                    }
                 }
-
-                let body = res.collect().await?.aggregate();
-                let value: LocalValue<T> = serde_json::from_reader(body.reader())?;
-                println!("Recieved {value:?} from {i}");
-                let mut info = info.lock().unwrap();
-                (*info)[i + 1] = Some(value);
-                Ok::<(), GenericError>(())
             });
         }
 
-        let mut acks = 1;
-        let mut failures = 0;
+        // Wait until a majority of neighbors have replied succesfully, and
+        // return their values.
+        let mut info: Vec<LocalValue<T>> = vec![local.clone()];
+
+        let mut acks: f32 = 1.0;
+        let mut failures: f32 = 0.0;
         let minority = (self.neighbors.len() as f32 + 1_f32) / 2_f32;
-        while acks as f32 <= minority && (failures as f32) <= minority {
-            if let Some(response) = handles.join_next().await {
-                match response? {
-                    Ok(_) => acks += 1,
-                    Err(_) => failures += 1,
+        while acks <= minority && failures <= minority {
+            if let Some(result) = handles.join_next().await {
+                match result? {
+                    Err(_) => failures += 1.0,
+                    Ok(value) => {
+                        info.push(value);
+                        acks += 1.0;
+                    }
                 }
             }
         }
 
-        if (failures as f32) > minority {
-            return Err(GenericError::from("A majority of neighbors are offline"));
+        if acks > minority {
+            Ok(info)
+        } else {
+            Err(GenericError::from("A majority of neighbors are offline"))
         }
-
-        let results = info.lock().unwrap().clone();
-        println!("After communication: {results:?}");
-        Ok(results)
     }
 
     /// TODO: Document
@@ -143,7 +136,7 @@ impl<T: Clone + Debug + Default + DeserializeOwned + Ord + Send + Serialize + 's
     /// TODO: Document
     pub async fn read(&self) -> Result<T, GenericError> {
         let info = self.communicate(MessageType::Ask).await?;
-        let max = info.into_iter().max().unwrap().unwrap();
+        let max = info.into_iter().max().unwrap();
         let local = self.update(&max);
         self.communicate(MessageType::Announce).await?;
         Ok(local.value)
@@ -235,7 +228,7 @@ mod tests {
                 let info = register.communicate(MessageType::Ask).await.unwrap();
 
                 let local = register.local.lock().unwrap();
-                assert_eq!(info, vec![Some(local.clone())])
+                assert_eq!(info, vec![local.clone()])
             }
         }
 

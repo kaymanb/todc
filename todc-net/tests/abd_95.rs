@@ -1,5 +1,6 @@
 #![allow(dead_code, unused_imports)]
 mod abd_95 {
+    #[cfg(feature = "turmoil")]
     mod common;
     #[cfg(feature = "turmoil")]
     mod linearizability;

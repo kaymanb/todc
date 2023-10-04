@@ -7,9 +7,9 @@ use std::time::{Duration, Instant};
 
 use rand::distributions::Standard;
 use rand::prelude::Distribution;
-use rand::rngs::ThreadRng;
+use rand::rngs::StdRng;
 use rand::seq::IteratorRandom;
-use rand::{thread_rng, Rng};
+use rand::{thread_rng, Rng, SeedableRng};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
@@ -17,7 +17,7 @@ use todc_net::abd_95::AtomicRegister;
 use todc_utils::specifications::register::{RegisterOperation, RegisterSpecification};
 use todc_utils::{Action, History, WGLChecker};
 
-use crate::abd_95::common::{simulate_servers, SERVER_PREFIX};
+use crate::abd_95::common::{simulate_servers_with_seed, SERVER_PREFIX};
 
 use RegisterOperation::{Read, Write};
 
@@ -71,7 +71,7 @@ struct RecordingRegisterClient<T: Clone + Debug + Default + DeserializeOwned + O
     actions: Arc<Mutex<Vec<RecordedAction<T>>>>,
     process: ProcessID,
     register: AtomicRegister<T>,
-    rng: ThreadRng,
+    rng: StdRng,
     value_type: PhantomData<T>,
 }
 
@@ -83,13 +83,14 @@ where
     fn new(
         process: ProcessID,
         register: AtomicRegister<T>,
+        rng: StdRng,
         actions: Arc<Mutex<Vec<RecordedAction<T>>>>,
     ) -> Self {
         Self {
             actions,
             process,
             register,
-            rng: thread_rng(),
+            rng,
             value_type: PhantomData,
         }
     }
@@ -139,20 +140,32 @@ where
 /// linearizable history.
 #[test]
 fn random_reads_and_writes_with_random_failures() {
-    const NUM_CLIENTS: usize = 5;
+    // HACK: Run fewer iterations when calculating code coverage.
+    #[cfg(coverage)]
+    const NUM_CLIENTS: usize = 3;
+    #[cfg(coverage)]
+    const NUM_OPERATIONS: usize = 10;
+    #[cfg(coverage)]
+    const NUM_SERVERS: usize = 6;
+
+    #[cfg(not(coverage))]
+    const NUM_CLIENTS: usize = 10;
+    #[cfg(not(coverage))]
     const NUM_OPERATIONS: usize = 50;
-    const NUM_SERVERS: usize = 10;
+    #[cfg(not(coverage))]
+    const NUM_SERVERS: usize = 20;
+
     const WRITE_PROBABILITY: f64 = 1.0 / 2.0;
-    const FAILURE_RATE: f64 = 0.9;
+    const FAILURE_RATE: f64 = 0.8;
 
     // Simulate a network where a random minority of servers
     // fail with non-zero probability.
-    let (mut sim, registers) = simulate_servers(NUM_SERVERS);
+    let (mut sim, registers, seed) = simulate_servers_with_seed(NUM_SERVERS);
     let servers: Vec<String> = (0..NUM_SERVERS)
         .map(|i| format!("{SERVER_PREFIX}-{i}"))
         .collect();
 
-    let mut rng = thread_rng();
+    let mut rng = StdRng::seed_from_u64(seed);
     let minority = ((NUM_SERVERS as f32 / 2.0).ceil() - 1.0) as usize;
 
     let faulty_servers: Vec<String> = servers
@@ -180,13 +193,14 @@ fn random_reads_and_writes_with_random_failures() {
     let actions: Arc<Mutex<Vec<TimedAction<RegisterOperation<u32>>>>> =
         Arc::new(Mutex::new(vec![]));
 
-    // Simulate clients that submit requests to correct servers.
+    // Simulate clients that submit requests.
     assert!(NUM_CLIENTS <= correct_servers.len());
     for (i, register) in registers.into_iter().enumerate().take(NUM_CLIENTS) {
         let actions = actions.clone();
+        let rng = rng.clone();
         let client_name = format!("client-{i}");
         sim.client(client_name, async move {
-            let mut client = RecordingRegisterClient::<u32>::new(i, register.clone(), actions);
+            let mut client = RecordingRegisterClient::<u32>::new(i, register.clone(), rng, actions);
             for _ in 0..NUM_OPERATIONS {
                 client.perform_random_operation(WRITE_PROBABILITY).await?;
             }
@@ -195,6 +209,9 @@ fn random_reads_and_writes_with_random_failures() {
     }
 
     sim.run().unwrap();
+
+    // Print the seed to enable re-trying a failed test.
+    println!("This test used the random seed: {seed}");
 
     // Collect log of call/response actions that occured during the simulation
     // and assert that the resulting history is linearizable
