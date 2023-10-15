@@ -5,13 +5,19 @@ use http_body_util::{BodyExt, Full};
 use hyper::body::Incoming;
 use hyper::http::StatusCode;
 use hyper::{Method, Request, Response, Uri};
-use hyper_util::rt::TokioIo;
 use serde_json::{json, Value as JSON};
 
 use crate::net::TcpStream;
 
 pub(crate) mod net;
 pub mod register;
+
+// NOTE: This module adds a local copy of some helper types that for integrating
+// tokio with Hyper 1.0. Hopefully, once Hyper 1.0 is released, there will be
+// a more standard way to integrate and this module can be deleted.
+// See: https://github.com/hyperium/hyper/issues/3110
+mod hyper_util_tokio_io;
+use hyper_util_tokio_io::TokioIo;
 
 type GenericError = Box<dyn std::error::Error + Send + Sync>;
 type ResponseResult = Result<Response<Incoming>, GenericError>;
