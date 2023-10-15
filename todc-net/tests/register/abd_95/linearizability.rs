@@ -13,11 +13,11 @@ use rand::{thread_rng, Rng, SeedableRng};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
-use todc_net::abd_95::AtomicRegister;
+use todc_net::register::abd_95::AtomicRegister;
 use todc_utils::specifications::register::{RegisterOperation, RegisterSpecification};
 use todc_utils::{Action, History, WGLChecker};
 
-use crate::abd_95::common::{simulate_servers_with_seed, SERVER_PREFIX};
+use crate::register::abd_95::common::{simulate_servers_with_seed, SERVER_PREFIX};
 
 use RegisterOperation::{Read, Write};
 
@@ -151,7 +151,7 @@ fn random_reads_and_writes_with_random_failures() {
     #[cfg(not(coverage))]
     const NUM_CLIENTS: usize = 10;
     #[cfg(not(coverage))]
-    const NUM_OPERATIONS: usize = 50;
+    const NUM_OPERATIONS: usize = 100;
     #[cfg(not(coverage))]
     const NUM_SERVERS: usize = 20;
 

@@ -14,7 +14,7 @@ use serde_json::Value as JSON;
 use turmoil::net::{TcpListener, TcpStream};
 use turmoil::{Builder, Sim};
 
-use todc_net::abd_95::AtomicRegister;
+use todc_net::register::abd_95::AtomicRegister;
 
 pub const SERVER_PREFIX: &str = "server";
 pub const PORT: u32 = 9999;

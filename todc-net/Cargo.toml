@@ -17,6 +17,7 @@ turmoil = { version = "0.5", optional = true }
 rand = "0.8.5"
 turmoil = "0.5"
 todc-utils = { path = "../todc-utils" }
+tokio-test = "0.4.3"
 
 [features]
 turmoil = ["dep:turmoil"]

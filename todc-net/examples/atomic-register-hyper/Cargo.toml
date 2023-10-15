@@ -1,0 +1,16 @@
+[workspace]
+
+[package]
+name = "atomic-register-hyper"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+bytes = "1"
+http-body-util = "0.1.0-rc.2"
+hyper = { version = "1.0.0-rc.4", features = ["full"] }
+hyper-util = { git = "https://github.com/hyperium/hyper-util.git" }
+todc-net = { git = "https://github.com/kaymanb/todc.git"}
+tokio = { version = "1", features = ["full"] }

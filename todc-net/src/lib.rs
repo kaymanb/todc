@@ -1,3 +1,4 @@
+//! Algorithms for message-passing (HTTP) distributed systems.
 use bytes::Bytes;
 use http_body_util::combinators::BoxBody;
 use http_body_util::{BodyExt, Full};
@@ -9,8 +10,8 @@ use serde_json::{json, Value as JSON};
 
 use crate::net::TcpStream;
 
-pub mod abd_95;
-pub mod net;
+pub(crate) mod net;
+pub mod register;
 
 type GenericError = Box<dyn std::error::Error + Send + Sync>;
 type ResponseResult = Result<Response<Incoming>, GenericError>;
