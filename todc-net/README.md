@@ -1,5 +1,8 @@
 # todc-net
 
+[![crates.io](https://img.shields.io/crates/v/todc-net)](https://crates.io/crates/todc-net/)
+[![docs.rs](https://img.shields.io/docsrs/todc-net)](https://docs.rs/todc-mem/0.1.0/todc_net/)
+
 Algorithms for message-passing (HTTP) distributed systems.
 
 ## Examples

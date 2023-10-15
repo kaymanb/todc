@@ -11,7 +11,7 @@ repository = "https://github.com/kaymanb/todc/tree/main"
 readme = "README.md"
 
 categories = ["algorithms", "asynchronous"]
-keywords = ["distributed-systems", "message-passing", "atomics"]
+keywords = ["distributed-systems", "message-passing"]
 
 [dependencies]
 bytes = "1"
