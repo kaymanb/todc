@@ -75,7 +75,7 @@ jobs:
         run: |
           cargo llvm-cov --no-report --workspace
           cargo llvm-cov --no-report -p todc-mem --features shuttle --test snapshot
-          cargo llvm-cov --no-report -p todc-net --features turmoil --test abd_95
+          cargo llvm-cov --no-report -p todc-net --features turmoil --test register
           cargo llvm-cov report --codecov --output-path codecov.json
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3

@@ -79,10 +79,11 @@
 //!     }    
 //! }
 //! ```
-//! ## Interacting with the Register
 //!
-//! Although our register isn't fault-tolerant yet, we can still try it out. Assuming
-//! that the code snippet above
+//! ### Interacting with a Register
+//!
+//! Although this register isn't fault-tolerant yet, we can still try it out. See
+//! the runnable example at [`todc-net/examples/atomic-register-hyper`](https://github.com/kaymanb/todc/tree/main/todc-net/examples/atomic-register-hyper).
 //!
 //! ## Adding Fault Tolerance with Multiple Instances
 //!
@@ -108,11 +109,12 @@
 //!     .collect();
 //! let register: AtomicRegister<Contents> = AtomicRegister::new(neighbor_urls);
 //! ```
-//!   
-//! ## Interacting with Multiple Instances
 //!
-//! To interact with multiple instances of a register all deployed at once, see
-//! [todc-net/examples/atomic-register-docker-minikube](https://github.com/kaymanb/todc/tree/main/todc-net/examples/atomic-register-docker-minikube).
+//! ### Interacting with a Fault Tolerant Register
+//!
+//! To interact with a fault-tolerant register backed by multiple instances, see
+//! the runnable example at
+//! [`todc-net/examples/atomic-register-docker-minikube`](https://github.com/kaymanb/todc/tree/main/todc-net/examples/atomic-register-docker-minikube).
 use std::fmt::Debug;
 use std::future::Future;
 use std::pin::Pin;

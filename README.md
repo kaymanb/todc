@@ -32,13 +32,4 @@ provides helpful tools for building and testing distributed systems.
 
 Code coverage can be calculated with [cargo-llvm-cov](https://github.com/taiki-e/cargo-llvm-cov). 
 Some tests can only be run when certain features are enabled. To most-accurately
-calculate code coverage, run:
-
-```
-cargo llvm-cov clean --workspace
-cargo llvm-cov --no-report --workspace
-cargo llvm-cov --no-report -p todc-mem --features shuttle --test snapshot
-cargo llvm-cov --no-report -p todc-net --features turmoil --test abd_95
-cargo llvm-cov report --open
-```
-
+calculate code coverage, check the [the `coverage` step of CI](https://github.com/kaymanb/todc/blob/main/.github/workflows/ci.yml#L65).
