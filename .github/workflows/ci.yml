@@ -60,7 +60,7 @@ jobs:
     - uses: dtolnay/rust-toolchain@stable
     - uses: Swatinem/rust-cache@v2
     - name: test todc-net/abd_96
-      run: cargo test -p todc-net --features turmoil --test abd_95
+      run: cargo test -p todc-net --features turmoil --test register
       
   coverage:
     needs: [check, test, test-shuttle, test-turmoil]
