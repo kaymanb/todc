@@ -6,7 +6,6 @@
 
 #![allow(dead_code)]
 //! Tokio IO integration for hyper
-use hyper;
 use std::pin::Pin;
 use std::task::Context;
 use std::task::Poll;
