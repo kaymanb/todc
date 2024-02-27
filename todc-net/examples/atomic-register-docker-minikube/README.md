@@ -7,7 +7,7 @@ cluster with `minikube start`.
 
 ## Build
 
-Point your sheel to `minikube`'s docker-daemon by running `minikube docker-env`
+Point your shell to `minikube`'s docker-daemon by running `minikube docker-env`
 and following the instructions. Once this is done, the service can be built
 with `docker-compose build`.
 
