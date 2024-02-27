@@ -7,7 +7,6 @@ use hyper::body::Incoming;
 use hyper::http::StatusCode;
 use hyper::server::conn::http1;
 use hyper::{Request, Response, Uri};
-use hyper_util::rt::TokioIo;
 use rand::rngs::StdRng;
 use rand::{thread_rng, Rng, SeedableRng};
 use serde_json::Value as JSON;
@@ -15,6 +14,7 @@ use turmoil::net::{TcpListener, TcpStream};
 use turmoil::{Builder, Sim};
 
 use todc_net::register::abd_95::AtomicRegister;
+use todc_net::TokioIo;
 
 pub const SERVER_PREFIX: &str = "server";
 pub const PORT: u32 = 9999;

@@ -17,7 +17,7 @@ pub mod register;
 // a more standard way to integrate and this module can be deleted.
 // See: https://github.com/hyperium/hyper/issues/3110
 mod hyper_util_tokio_io;
-use hyper_util_tokio_io::TokioIo;
+pub use hyper_util_tokio_io::TokioIo;
 
 type GenericError = Box<dyn std::error::Error + Send + Sync>;
 type ResponseResult = Result<Response<Incoming>, GenericError>;
