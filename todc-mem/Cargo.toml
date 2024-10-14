@@ -29,3 +29,6 @@ shuttle = ["dep:shuttle"]
 [[bench]]
 name = "compare_snapshot_implementations"
 harness = false
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage)'] }

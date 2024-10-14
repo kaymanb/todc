@@ -32,3 +32,6 @@ tokio-test = "0.4.3"
 
 [features]
 turmoil = ["dep:turmoil"]
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage)'] }
