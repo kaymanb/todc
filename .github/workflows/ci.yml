@@ -76,7 +76,7 @@ jobs:
           cargo llvm-cov --no-report --workspace
           cargo llvm-cov --no-report -p todc-mem --features shuttle --test snapshot
           cargo llvm-cov --no-report -p todc-net --features turmoil --test register
-          cargo llvm-cov report --codecov --output-path codecov.json
+          cargo llvm-cov report --codecov --output-path codecov.json --ignore-filename-regex hyper_util_tokio_io.rs
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v3
         with:
